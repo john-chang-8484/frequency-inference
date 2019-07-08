@@ -129,7 +129,8 @@ def main():
     whichthing = 1
     
     if whichthing == 0:
-        ms = many_measure(omega_true, ts, ns); print(ms) # <-------- TODO: remove print
+        ms = many_measure(omega_true, ts, ns)
+        print(ms)
         omega_mle = max_likelihood(omegas, None, ts, ns, ms)
         omega_map = max_ap(omegas, prior, ts, ns, ms)
         omega_mean = mean(omegas, prior, ts, ns, ms)
@@ -144,7 +145,7 @@ def main():
     elif whichthing == 1:
         mle, mpe, mmse = [], [], []
         mle_var, mpe_var, mmse_var = [], [], []
-        t2list = np.arange(0.1, 120., 0.1)
+        t2list = np.arange(0.1, 20., 0.1)
         for t2 in t2list:
             print(t2)
             ts[0] = t2
@@ -155,7 +156,7 @@ def main():
         plt.errorbar(t2list, mpe, yerr=np.sqrt(mpe_var), color=(0., 0., 1.))
         plt.errorbar(t2list, mmse, yerr=np.sqrt(mmse_var), color=(0.5, 0., 1.))
     
-    plt.ylim(ymin=0.0)
+    plt.ylim(bottom=0.0)
     plt.show()
 
 
