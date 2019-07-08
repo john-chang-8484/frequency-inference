@@ -145,16 +145,16 @@ def main():
     elif whichthing == 1:
         mle, mpe, mmse = [], [], []
         mle_var, mpe_var, mmse_var = [], [], []
-        t2list = np.arange(0.1, 20., 0.1)
+        t2list = np.arange(0.1, 18., 0.1)
         for t2 in t2list:
             print(t2)
             ts[0] = t2
             avl, avl_var = avg_loss_all_omega(omegas, prior, (ts, ns), [max_likelihood, max_ap, mean], 1000)
             mle.append(avl[0]); mpe.append(avl[1]); mmse.append(avl[2])
             mle_var.append(avl_var[0]); mpe_var.append(avl_var[1]); mmse_var.append(avl_var[2])
-        plt.errorbar(t2list, mle, yerr=np.sqrt(mle_var), color=(0., 1., 0.))
-        plt.errorbar(t2list, mpe, yerr=np.sqrt(mpe_var), color=(0., 0., 1.))
-        plt.errorbar(t2list, mmse, yerr=np.sqrt(mmse_var), color=(0.5, 0., 1.))
+        plt.errorbar(t2list, mle, yerr=np.sqrt(mle_var), color=(0., 1., 0.), capsize=2)
+        plt.errorbar(t2list, mpe, yerr=np.sqrt(mpe_var), color=(0., 0., 1.), capsize=2)
+        plt.errorbar(t2list, mmse, yerr=np.sqrt(mmse_var), color=(0.5, 0., 1.), capsize=2)
     
     plt.ylim(bottom=0.0)
     plt.show()
