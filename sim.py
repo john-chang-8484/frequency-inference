@@ -2,6 +2,7 @@ import numpy as np
 from random import randint, random
 from matplotlib import pyplot as plt
 from scipy.special import gammaln
+from scipy.optimize import curve_fit
 from util import save_data, get_filepath
 
 
@@ -36,13 +37,13 @@ def posterior(prior, likelihood):
 
 
 # probability of excitation at time t for a given value of omega
-def prob_excited(omega, t):
+def prob_excited(t, omega):
     return np.sin(omega * t * 0.5)**2
 
 
 # returns the number of excited states measured
 def measure(omega, t, n):
-    return np.random.binomial(n, prob_excited(omega, t))
+    return np.random.binomial(n, prob_excited(t, omega))
 
 # make many measurements given a list of ts, ns
 def many_measure(omega, ts, ns):
@@ -56,8 +57,8 @@ def log_likelihood(omega, ts, ns, measurements):
     for t, n, m in zip(ts, ns, measurements):
         ans += (
             gammaln(1 + n) - gammaln(1 + m) - gammaln(1 + n - m) +  # binomial coefficient
-            m * np.log(prob_excited(omega, t)) +             # p^m
-            (n - m) * np.log(1. - prob_excited(omega, t))    # (1-p)^(n-m)
+            m * np.log(prob_excited(t, omega)) +             # p^m
+            (n - m) * np.log(1. - prob_excited(t, omega))    # (1-p)^(n-m)
         )
     return ans
 
@@ -86,6 +87,26 @@ def max_ap(omegas, prior, ts, ns, measurements):
 def mean(omegas, prior, ts, ns, measurements):
     post = posterior(prior, likelihood(omegas, ts, ns, measurements))
     return np.sum(omegas * post, axis=-1)
+
+# perform a fit based on the probability estimators
+# p_est are the estimated probabilities
+# (see wikipedia on the mean of the beta distribution)
+def fit_unweighted(omegas, prior, ts, ns, measurements):
+    p_est = (1. + np.array(measurements)) / (2. + np.array(ns))
+    inloop = True
+    errcount = 0
+    while inloop:
+        try:
+            omega_est, uncertainty = curve_fit(
+                prob_excited, ts, p_est,
+                p0=[1.], bounds=([omega_min], [omega_max]), method='trf'
+            )
+            inloop = False
+        except RuntimeError:
+            errcount += 1
+            p_est += 0.0003 * (random() - 0.5) # try again with slightly different values
+            print(errcount)
+    return omega_est[0]
 
 ##                                                                           ##
 ###############################################################################
@@ -147,7 +168,7 @@ def main():
         for t in tlist:
             print(t)
             ts[t_change_idx] = t
-            avl, avl_var = avg_loss_all_omega(omegas, prior, (ts, ns), [max_likelihood, max_ap, mean], 1000)
+            avl, avl_var = avg_loss_all_omega(omegas, prior, (ts, ns), [fit_unweighted, max_ap, mean], 1000)
             mle.append(avl[0]); mpe.append(avl[1]); mmse.append(avl[2])
             mle_var.append(avl_var[0]); mpe_var.append(avl_var[1]); mmse_var.append(avl_var[2])
         
