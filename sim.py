@@ -91,7 +91,7 @@ def mean(omegas, prior, ts, ns, measurements):
 ###############################################################################
 
 
-# given a prior on omega0 and a measurement strategy, compute the average loss using monte-carlo
+# given a prior on omega and a measurement strategy, compute the average loss using monte-carlo
 # loss is the squared difference between estimator and true
 # each estimator is a fn taking (omegas, prior, ts, ns, measurements)
 # runs is the number of monte-carlo runs to do
@@ -114,8 +114,8 @@ def avg_loss_all_omega(omegas, prior, strat, estimators, runs=1000):
 
 # NOTE: assumes unvarying omega
 def main():
-    ts = [7.8, 21., 0.]
-    ns = [33, 33, 33]
+    ts = [8., None]
+    ns = [50, 50]
     omegas = np.arange(omega_min, omega_max, 0.001)
     prior = normalize(1. + 0.*omegas)
     
@@ -140,16 +140,18 @@ def main():
         plt.show()
     
     elif whichthing == 1:
+        t_change_idx = ts.index(None)
         mle, mpe, mmse = [], [], []
         mle_var, mpe_var, mmse_var = [], [], []
-        t2list = np.arange(0.1, 38., 0.3)
-        for t2 in t2list:
-            print(t2)
-            ts[2] = t2
+        tlist = np.arange(0.1, 28., 0.1)
+        for t in tlist:
+            print(t)
+            ts[t_change_idx] = t
             avl, avl_var = avg_loss_all_omega(omegas, prior, (ts, ns), [max_likelihood, max_ap, mean], 1000)
             mle.append(avl[0]); mpe.append(avl[1]); mmse.append(avl[2])
             mle_var.append(avl_var[0]); mpe_var.append(avl_var[1]); mmse_var.append(avl_var[2])
         
+        ts[t_change_idx] = None
         data = {
             'omega_min': omega_min,
             'omega_max': omega_max,
@@ -157,7 +159,7 @@ def main():
             'ns': ns,
             'omegas': omegas,
             'prior': prior,
-            'tlist': t2list,
+            'tlist': tlist,
             'mle': mle,
             'mpe': mpe,
             'mmse': mmse,

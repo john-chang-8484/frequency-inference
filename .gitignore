@@ -2,6 +2,8 @@
 *.log
 *.stats
 
+notes.txt
+
 data
 __pycache__
 
