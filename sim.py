@@ -10,12 +10,6 @@ omega_min = 0.8     # [1/s]
 omega_max = 1.2     # [1/s]
 
 
-
-# get theta, assuming constant omega
-def theta(omega, t):
-    return omega * t * 0.5
-
-
 # normalize a discrete probability distribution
 def normalize(dist):
     return dist / np.sum(dist, axis=-1)
@@ -41,14 +35,14 @@ def posterior(prior, likelihood):
     return normalize(prior * likelihood)
 
 
-# probability of excitation for a given value of theta
-def prob_excited(theta):
-    return np.sin(theta)**2
+# probability of excitation at time t for a given value of omega
+def prob_excited(omega, t):
+    return np.sin(omega * t * 0.5)**2
 
 
 # returns the number of excited states measured
 def measure(omega, t, n):
-    return np.random.binomial(n, prob_excited(theta(omega, t)))
+    return np.random.binomial(n, prob_excited(omega, t))
 
 # make many measurements given a list of ts, ns
 def many_measure(omega, ts, ns):
@@ -62,8 +56,8 @@ def log_likelihood(omega, ts, ns, measurements):
     for t, n, m in zip(ts, ns, measurements):
         ans += (
             gammaln(1 + n) - gammaln(1 + m) - gammaln(1 + n - m) +  # binomial coefficient
-            m * np.log(prob_excited(theta(omega, t))) +             # p^m
-            (n - m) * np.log(1. - prob_excited(theta(omega, t)))    # (1-p)^(n-m)
+            m * np.log(prob_excited(omega, t)) +             # p^m
+            (n - m) * np.log(1. - prob_excited(omega, t))    # (1-p)^(n-m)
         )
     return ans
 
@@ -120,16 +114,16 @@ def avg_loss_all_omega(omegas, prior, strat, estimators, runs=1000):
 
 # NOTE: assumes unvarying omega
 def main():
-    ts = [1.0]
-    ns = [100]
-    omegas = np.arange(omega_min, omega_max, 0.01)
+    ts = [7.8, 21., 0.]
+    ns = [33, 33, 33]
+    omegas = np.arange(omega_min, omega_max, 0.001)
     prior = normalize(1. + 0.*omegas)
-    omega_true = sample_dist(omegas, prior)
-    print('true omega:', omega_true)
     
     whichthing = 1
     
     if whichthing == 0:
+        omega_true = sample_dist(omegas, prior)
+        print('true omega:', omega_true)
         ms = many_measure(omega_true, ts, ns)
         print(ms)
         omega_mle = max_likelihood(omegas, None, ts, ns, ms)
@@ -142,14 +136,16 @@ def main():
         plt.plot(omegas, posterior(prior, likelihood(omegas, ts, ns, ms)), color=(0., 0., 1.))
         plt.plot(omegas, prior, color=(1., 0., 0.))
         plt.plot([omega_true], [0.0], color=(1., 0., 0.), marker='o')
+        plt.ylim(bottom=0.)
+        plt.show()
     
     elif whichthing == 1:
         mle, mpe, mmse = [], [], []
         mle_var, mpe_var, mmse_var = [], [], []
-        t2list = np.arange(0.1, 18., 1.1)
+        t2list = np.arange(0.1, 38., 0.3)
         for t2 in t2list:
             print(t2)
-            ts[0] = t2
+            ts[2] = t2
             avl, avl_var = avg_loss_all_omega(omegas, prior, (ts, ns), [max_likelihood, max_ap, mean], 1000)
             mle.append(avl[0]); mpe.append(avl[1]); mmse.append(avl[2])
             mle_var.append(avl_var[0]); mpe_var.append(avl_var[1]); mmse_var.append(avl_var[2])
@@ -157,6 +153,8 @@ def main():
         data = {
             'omega_min': omega_min,
             'omega_max': omega_max,
+            'ts': ts,
+            'ns': ns,
             'omegas': omegas,
             'prior': prior,
             'tlist': t2list,
