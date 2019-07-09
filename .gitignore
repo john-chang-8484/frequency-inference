@@ -1,5 +1,7 @@
 *~
 *.log
+*.stats
 
 data
+__pycache__
 
