@@ -1,6 +1,5 @@
 import numpy as np
 from random import randint, random
-from matplotlib import pyplot as plt
 from scipy.special import gammaln
 from scipy.optimize import curve_fit
 from util import save_data, get_filepath
@@ -135,9 +134,9 @@ def avg_loss_all_omega(omegas, prior, strat, estimators, runs=1000):
 
 # NOTE: assumes unvarying omega
 def main():
-    ts = [8., None]
-    ns = [50, 50]
-    omegas = np.arange(omega_min, omega_max, 0.001)
+    ts = [None]
+    ns = [20]
+    omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
     
     whichthing = 1
@@ -162,15 +161,19 @@ def main():
     
     elif whichthing == 1:
         t_change_idx = ts.index(None)
-        mle, mpe, mmse = [], [], []
-        mle_var, mpe_var, mmse_var = [], [], []
-        tlist = np.arange(0.1, 28., 0.1)
+        tlist = np.arange(0.1, 25., 0.1)
+        estimators = [max_likelihood, max_ap, mean, fit_unweighted]
+        estimator_names = ['mle', 'map', 'mmse', 'fit1']
+        avg_losses = [[] for i in range(0, len(estimators))]
+        avg_loss_vars = [[] for i in range(0, len(estimators))]
         for t in tlist:
             print(t)
             ts[t_change_idx] = t
-            avl, avl_var = avg_loss_all_omega(omegas, prior, (ts, ns), [fit_unweighted, max_ap, mean], 1000)
-            mle.append(avl[0]); mpe.append(avl[1]); mmse.append(avl[2])
-            mle_var.append(avl_var[0]); mpe_var.append(avl_var[1]); mmse_var.append(avl_var[2])
+            avgloss, avgloss_var = avg_loss_all_omega(omegas, prior,
+                (ts, ns), estimators, 1000)
+            for i in range(0, len(estimators)):
+                avg_losses[i].append(avgloss[i])
+                avg_loss_vars[i].append(avgloss_var[i])
         
         ts[t_change_idx] = None
         data = {
@@ -181,12 +184,9 @@ def main():
             'omegas': omegas,
             'prior': prior,
             'tlist': tlist,
-            'mle': mle,
-            'mpe': mpe,
-            'mmse': mmse,
-            'mle_var': mle_var,
-            'mpe_var': mpe_var,
-            'mmse_var': mmse_var,
+            'estimator_names': estimator_names,
+            'avg_losses': avg_losses,
+            'avg_loss_vars': avg_loss_vars,
             'plottype': 'measure_time'
         }
         save_data(data, get_filepath(data['plottype']))

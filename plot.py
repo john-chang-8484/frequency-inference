@@ -4,10 +4,10 @@ from sys import argv
 from util import load_data, Bunch
 
 def plot_measure_time(b):
-    plt.errorbar(b.tlist, b.mle, yerr=np.sqrt(b.mle_var), color=(0., 1., 0.), capsize=2)
-    plt.errorbar(b.tlist, b.mpe, yerr=np.sqrt(b.mpe_var), color=(0., 0., 1.), capsize=2)
-    plt.errorbar(b.tlist, b.mmse, yerr=np.sqrt(b.mmse_var), color=(0.5, 0., 1.), capsize=2)
+    for loss, var, nm in zip(b.avg_losses, b.avg_loss_vars, b.estimator_names):
+        plt.errorbar(b.tlist, loss, yerr=np.sqrt(var), capsize=2, label=nm)
     plt.ylim(bottom=0.0)
+    plt.legend()
     plt.show()
 
 plotfns = {
