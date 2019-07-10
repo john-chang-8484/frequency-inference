@@ -31,7 +31,7 @@ def sample_dist(values, dist):
 
 # given omega, prior, and likelihood arrays, computes the posterior distribution
 # (this posterior is on the *discrete* values of omega given)
-def posterior(prior, likelihood):
+def get_posterior(prior, likelihood):
     return normalize(prior * likelihood)
 
 
@@ -54,11 +54,13 @@ def many_measure(omega, ts, ns):
 def log_likelihood(omega, ts, ns, measurements):
     ans = 0.0
     for t, n, m in zip(ts, ns, measurements):
+        pe = prob_excited(t, omega)
         ans += (
             gammaln(1 + n) - gammaln(1 + m) - gammaln(1 + n - m) +  # binomial coefficient
-            m * np.log(prob_excited(t, omega)) +             # p^m
-            (n - m) * np.log(1. - prob_excited(t, omega))    # (1-p)^(n-m)
+            m * np.log(pe) +             # p^m
+            (n - m) * np.log(1. - pe)    # (1-p)^(n-m)
         )
+    ans[np.isnan(ans)] = -np.inf # deal with zero values
     return ans
 
 # NOTE: assumes unvarying omega
@@ -78,13 +80,13 @@ def max_likelihood(omegas, prior, ts, ns, measurements):
 # maximum a posteriori estimator for omega
 # takes a set of measurements at times ts, and numbers ns
 def max_ap(omegas, prior, ts, ns, measurements):
-    post = posterior(prior, likelihood(omegas, ts, ns, measurements))
+    post = get_posterior(prior, likelihood(omegas, ts, ns, measurements))
     return omegas[np.argmax(post)]
 
 # mean estimator for omega
 # takes a set of measurements at times ts, and numbers ns
 def mean(omegas, prior, ts, ns, measurements):
-    post = posterior(prior, likelihood(omegas, ts, ns, measurements))
+    post = get_posterior(prior, likelihood(omegas, ts, ns, measurements))
     return np.sum(omegas * post, axis=-1)
 
 # perform a fit based on the probability estimators
@@ -104,7 +106,7 @@ def fit_unweighted(omegas, prior, ts, ns, measurements):
         except RuntimeError:
             errcount += 1
             p_est += 0.001 * random() # try again with slightly different values
-            print(errcount)
+            print('\t', errcount, '!')
     return omega_est[0]
 
 # perform a fit based on the probability estimators
@@ -127,7 +129,7 @@ def fit_weighted(omegas, prior, ts, ns, measurements):
         except RuntimeError:
             errcount += 1
             p_est += 0.001 * random() # try again with slightly different values
-            print(errcount)
+            print('\t', errcount, '!')
     return omega_est[0]
 
 ##                                                                           ##
@@ -137,9 +139,6 @@ def fit_weighted(omegas, prior, ts, ns, measurements):
 # given a prior on omega and a measurement strategy, compute the average loss using monte-carlo
 # loss is the squared difference between estimator and true
 # each estimator is a fn taking (omegas, prior, ts, ns, measurements)
-# runs is the number of monte-carlo runs to do
-# returns an array corresponding to the average loss for each estimator, and a variance of the loss
-# NOTE: assumes unvarying omega
 def avg_loss_all_omega(omegas, prior, strat, estimators, runs=1000):
     ts, ns = strat
     avg = np.zeros(len(estimators), dtype=np.float64)
@@ -147,6 +146,7 @@ def avg_loss_all_omega(omegas, prior, strat, estimators, runs=1000):
     for r in range(0, runs):
         omega = sample_dist(omegas, prior)
         ms = many_measure(omega, ts, ns)
+        # each estimator sees the same sun
         for i, estimator in enumerate(estimators):
             omega_est = estimator(omegas, prior, ts, ns, ms)
             avg[i] += (omega - omega_est)**2
@@ -162,7 +162,7 @@ def main():
     omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
     
-    whichthing = 1
+    whichthing = 2
     
     if whichthing == 0:
         omega_true = sample_dist(omegas, prior)
@@ -176,7 +176,7 @@ def main():
         plt.plot(omegas, normalize(likelihood(omegas, ts, ns, ms)), color=(0., 1., 0.))
         plt.plot([omega_map], [0.0], color=(0., 0., 1.), marker='o')
         plt.plot([omega_mean], [0.0], color=(0.5, 0.0, 1.), marker='o')
-        plt.plot(omegas, posterior(prior, likelihood(omegas, ts, ns, ms)), color=(0., 0., 1.))
+        plt.plot(omegas, get_posterior(prior, likelihood(omegas, ts, ns, ms)), color=(0., 0., 1.))
         plt.plot(omegas, prior, color=(1., 0., 0.))
         plt.plot([omega_true], [0.0], color=(1., 0., 0.), marker='o')
         plt.ylim(bottom=0.)
@@ -213,7 +213,41 @@ def main():
             'plottype': 'measure_time'
         }
         save_data(data, get_filepath(data['plottype']))
-
+    
+    elif whichthing == 2:
+        N = 100
+        nshots_list = np.arange(1, 25, 1, dtype=np.int64)
+        t_min = 0.
+        t_max = 20. * np.pi
+        estimators = [max_likelihood, max_ap, mean, fit_unweighted, fit_weighted]
+        estimator_names = ['mle', 'map', 'mmse', 'fit1', 'fit2']
+        avg_losses = [[] for i in range(0, len(estimators))]
+        avg_loss_vars = [[] for i in range(0, len(estimators))]
+        for nshots in nshots_list:
+            print(nshots, nshots * (N // nshots))
+            ts = np.linspace(t_max, t_min, nshots, endpoint=False)
+            ns = (N // nshots) * np.ones(nshots, dtype=np.int64)
+            avgloss, avgloss_var = avg_loss_all_omega(omegas, prior,
+                (ts, ns), estimators, 1000)
+            for i in range(0, len(estimators)):
+                avg_losses[i].append(avgloss[i])
+                avg_loss_vars[i].append(avgloss_var[i])
+        
+        data = {
+            'omega_min': omega_min,
+            'omega_max': omega_max,
+            't_min': t_min,
+            't_max': t_max,
+            'N': N,
+            'nshots_list': nshots_list,
+            'omegas': omegas,
+            'prior': prior,
+            'estimator_names': estimator_names,
+            'avg_losses': avg_losses,
+            'avg_loss_vars': avg_loss_vars,
+            'plottype': 'shot_number'
+        }
+        save_data(data, get_filepath(data['plottype']))
 
 
 if __name__ == '__main__':
