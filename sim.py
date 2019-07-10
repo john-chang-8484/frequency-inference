@@ -2,6 +2,7 @@ import numpy as np
 from random import randint, random
 from scipy.special import gammaln
 from scipy.optimize import curve_fit
+import matplotlib.pyplot as plt
 from util import save_data, get_filepath
 
 
@@ -68,7 +69,7 @@ def likelihood(omega, ts, ns, measurements):
     return np.exp(log_likelihood(omega, ts, ns, measurements))
 
 ###############################################################################
-##          Estimators:                                                      ##
+##          Estimators for Omega:                                            ##
 
 # maximum likelihood estimator for omega
 # takes a set of measurements at times ts, and numbers ns
@@ -157,12 +158,12 @@ def avg_loss_all_omega(omegas, prior, strat, estimators, runs=1000):
 
 # NOTE: assumes unvarying omega
 def main():
-    ts = [5., None]
+    ts = [5., 8.]
     ns = [30, 70]
     omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
     
-    whichthing = 2
+    whichthing = 0
     
     if whichthing == 0:
         omega_true = sample_dist(omegas, prior)
