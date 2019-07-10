@@ -98,12 +98,35 @@ def fit_unweighted(omegas, prior, ts, ns, measurements):
         try:
             omega_est, uncertainty = curve_fit(
                 prob_excited, ts, p_est,
-                p0=[1.], bounds=([omega_min], [omega_max]), method='trf'
+                p0=[1.], method='lm'
             )
             inloop = False
         except RuntimeError:
             errcount += 1
-            p_est += 0.0003 * (random() - 0.5) # try again with slightly different values
+            p_est += 0.001 * random() # try again with slightly different values
+            print(errcount)
+    return omega_est[0]
+
+# perform a fit based on the probability estimators
+# p_est are the estimated probabilities
+# (see wikipedia on the variance of the beta distribution)
+def fit_weighted(omegas, prior, ts, ns, measurements):
+    m = np.array(measurements)
+    n = np.array(ns)
+    p_est = (1. + m) / (2. + n)
+    var_est = (m * (n - m) + n + 1.) / ((2 + n)**2 * (3 + n))
+    inloop = True
+    errcount = 0
+    while inloop:
+        try:
+            omega_est, uncertainty = curve_fit(
+                prob_excited, ts, p_est, sigma=np.sqrt(var_est),
+                p0=[1.], method='lm'
+            )
+            inloop = False
+        except RuntimeError:
+            errcount += 1
+            p_est += 0.001 * random() # try again with slightly different values
             print(errcount)
     return omega_est[0]
 
@@ -134,8 +157,8 @@ def avg_loss_all_omega(omegas, prior, strat, estimators, runs=1000):
 
 # NOTE: assumes unvarying omega
 def main():
-    ts = [None]
-    ns = [20]
+    ts = [5., None]
+    ns = [30, 70]
     omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
     
@@ -162,8 +185,8 @@ def main():
     elif whichthing == 1:
         t_change_idx = ts.index(None)
         tlist = np.arange(0.1, 25., 0.1)
-        estimators = [max_likelihood, max_ap, mean, fit_unweighted]
-        estimator_names = ['mle', 'map', 'mmse', 'fit1']
+        estimators = [max_likelihood, max_ap, mean, fit_unweighted, fit_weighted]
+        estimator_names = ['mle', 'map', 'mmse', 'fit1', 'fit2']
         avg_losses = [[] for i in range(0, len(estimators))]
         avg_loss_vars = [[] for i in range(0, len(estimators))]
         for t in tlist:
