@@ -163,6 +163,11 @@ def t_omega_fit_weighted(theta, omegas, prior, ts, ns, measurements):
     omega_est = omega_fit_weighted(omegas, prior, ts, ns, measurements)
     return 2 * theta / omega_est
 
+# estimate t_theta by taking the mean of the posterior t_theta distribution
+def t_mmse(theta, omegas, prior, ts, ns, measurements):
+    post = get_posterior(prior, likelihood(omegas, ts, ns, measurements))
+    return np.sum((2. * theta / omegas) * post, axis=-1)
+
 ##                                                                           ##
 ###############################################################################
 
@@ -183,12 +188,27 @@ def avg_loss_all_omega(omegas, prior, strat, estimators, runs=1000):
             avg[i] += (omega - omega_est)**2
             avgsq[i] += (omega - omega_est)**4
     return avg / runs, ((avgsq / runs) - (avg / runs)**2) / runs
-    
+
+# like avg_loss_all_omega, but the loss is (t_theta_est - t_theta)**2
+def avg_t_loss_all_omega(theta, omegas, prior, strat, estimators, runs=1000):
+    ts, ns = strat
+    avg = np.zeros(len(estimators), dtype=np.float64)
+    avgsq = np.zeros(len(estimators), dtype=np.float64)
+    for r in range(0, runs):
+        omega = sample_dist(omegas, prior)
+        t_theta = 2. * theta / omega
+        ms = many_measure(omega, ts, ns)
+        # each estimator sees the same sun
+        for i, estimator in enumerate(estimators):
+            t_theta_est = estimator(theta, omegas, prior, ts, ns, ms)
+            avg[i] += (t_theta_est - t_theta)**2
+            avgsq[i] += (t_theta_est - t_theta)**4
+    return avg / runs, ((avgsq / runs) - (avg / runs)**2) / runs
 
 
 # NOTE: assumes unvarying omega
 def main():
-    ts = [None]
+    ts = [7.9]
     ns = [100]
     omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
@@ -196,7 +216,10 @@ def main():
     estimators = [omega_mle, omega_map, omega_mmse, omega_fit_unweighted, omega_fit_weighted]
     estimator_names = ['mle', 'map', 'mmse', 'fit_unweighted', 'fit_weighted']
     
-    whichthing = 1
+    t_estimators = [t_omega_mle, t_omega_map, t_omega_mmse, t_omega_fit_unweighted, t_omega_fit_weighted, t_mmse]
+    t_estimator_names = ['omega_mle', 'omega_map', 'omega_mmse', 'omega_fit_unweighted', 'omega_fit_weighted', 'mmse']
+    
+    whichthing = 3
     
     if whichthing == 0:
         pass
@@ -281,6 +304,31 @@ def main():
             'plottype': 'shot_number'
         }
         save_data(data, get_filepath(data['plottype']))
+    
+    elif whichthing == 3:
+        theta_list = np.linspace(0., 2*np.pi)
+        avg_losses = [[] for i in range(0, len(t_estimators))]
+        avg_loss_vars = [[] for i in range(0, len(t_estimators))]
+        for theta in theta_list:
+            print(theta)
+            avgloss, avgloss_var = avg_t_loss_all_omega(theta, omegas, prior,
+                (ts, ns), t_estimators, 1000)
+            for i in range(0, len(t_estimators)):
+                avg_losses[i].append(avgloss[i])
+                avg_loss_vars[i].append(avgloss_var[i])
+        data = {
+            'omega_min': omega_min,
+            'omega_max': omega_max,
+            'theta_list': theta_list,
+            'omegas': omegas,
+            'prior': prior,
+            't_estimator_names': t_estimator_names,
+            'avg_losses': avg_losses,
+            'avg_loss_vars': avg_loss_vars,
+            'plottype': 't_theta_loss'
+        }
+        save_data(data, get_filepath(data['plottype']))
+        
 
 
 if __name__ == '__main__':
