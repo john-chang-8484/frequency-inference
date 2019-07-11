@@ -74,27 +74,26 @@ def likelihood(omega, ts, ns, measurements):
 # maximum likelihood estimator for omega
 # takes a set of measurements at times ts, and numbers ns
 # prior is unused
-def max_likelihood(omegas, prior, ts, ns, measurements):
+def omega_mle(omegas, prior, ts, ns, measurements):
     log_likelihoods = log_likelihood(omegas, ts, ns, measurements)
     return omegas[np.argmax(log_likelihoods)]
 
 # maximum a posteriori estimator for omega
 # takes a set of measurements at times ts, and numbers ns
-def max_ap(omegas, prior, ts, ns, measurements):
+def omega_map(omegas, prior, ts, ns, measurements):
     post = get_posterior(prior, likelihood(omegas, ts, ns, measurements))
     return omegas[np.argmax(post)]
 
-# mean estimator for omega
+# estimates omega at the mean of the posterior dist
 # takes a set of measurements at times ts, and numbers ns
-def mean(omegas, prior, ts, ns, measurements):
+def omega_mmse(omegas, prior, ts, ns, measurements):
     post = get_posterior(prior, likelihood(omegas, ts, ns, measurements))
     return np.sum(omegas * post, axis=-1)
 
 # perform a fit based on the probability estimators
 # p_est are the estimated probabilities
-# (see wikipedia on the mean of the beta distribution)
-def fit_unweighted(omegas, prior, ts, ns, measurements):
-    p_est = (1. + np.array(measurements)) / (2. + np.array(ns))
+def omega_fit_unweighted(omegas, prior, ts, ns, measurements):
+    p_est = (1. + np.array(measurements)) / (2. + np.array(ns)) # (beta distribution mean)
     inloop = True
     errcount = 0
     while inloop:
@@ -112,12 +111,11 @@ def fit_unweighted(omegas, prior, ts, ns, measurements):
 
 # perform a fit based on the probability estimators
 # p_est are the estimated probabilities
-# (see wikipedia on the variance of the beta distribution)
-def fit_weighted(omegas, prior, ts, ns, measurements):
+def omega_fit_weighted(omegas, prior, ts, ns, measurements):
     m = np.array(measurements)
     n = np.array(ns)
     p_est = (1. + m) / (2. + n)
-    var_est = (m * (n - m) + n + 1.) / ((2 + n)**2 * (3 + n))
+    var_est = (m * (n - m) + n + 1.) / ((2 + n)**2 * (3 + n)) # (beta distribution variance)
     inloop = True
     errcount = 0
     while inloop:
@@ -132,6 +130,38 @@ def fit_weighted(omegas, prior, ts, ns, measurements):
             p_est += 0.001 * random() # try again with slightly different values
             print('\t', errcount, '!')
     return omega_est[0]
+
+##                                                                           ##
+###############################################################################
+
+
+###############################################################################
+##          Estimators for t_theta:                                          ##
+
+# estimate t_theta from maximum likelihood estimator for omega
+def t_omega_mle(theta, omegas, prior, ts, ns, measurements):
+    omega_est = omega_mle(omegas, prior, ts, ns, measurements)
+    return 2 * theta / omega_est
+
+# estimate t_theta from maximum a posteriori estimator for omega
+def t_omega_map(theta, omegas, prior, ts, ns, measurements):
+    omega_est = omega_map(omegas, prior, ts, ns, measurements)
+    return 2 * theta / omega_est
+
+# estimate t_theta from the "mean of posterior" estimator for omega
+def t_omega_mmse(theta, omegas, prior, ts, ns, measurements):
+    omega_est = omega_mmse(omegas, prior, ts, ns, measurements)
+    return 2 * theta / omega_est
+
+# estimate t_theta from the unweighted fit estimator for omega
+def t_omega_fit_unweighted(theta, omegas, prior, ts, ns, measurements):
+    omega_est = omega_fit_unweighted(omegas, prior, ts, ns, measurements)
+    return 2 * theta / omega_est
+
+# estimate t_theta from the weighted fit estimator for omega
+def t_omega_fit_weighted(theta, omegas, prior, ts, ns, measurements):
+    omega_est = omega_fit_weighted(omegas, prior, ts, ns, measurements)
+    return 2 * theta / omega_est
 
 ##                                                                           ##
 ###############################################################################
@@ -158,20 +188,25 @@ def avg_loss_all_omega(omegas, prior, strat, estimators, runs=1000):
 
 # NOTE: assumes unvarying omega
 def main():
-    ts = [5., 8.]
-    ns = [30, 70]
+    ts = [None]
+    ns = [100]
     omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
     
-    whichthing = 0
+    estimators = [omega_mle, omega_map, omega_mmse, omega_fit_unweighted, omega_fit_weighted]
+    estimator_names = ['mle', 'map', 'mmse', 'fit_unweighted', 'fit_weighted']
+    
+    whichthing = 1
     
     if whichthing == 0:
+        pass
+        '''
         omega_true = sample_dist(omegas, prior)
         print('true omega:', omega_true)
         ms = many_measure(omega_true, ts, ns)
         print(ms)
-        omega_mle = max_likelihood(omegas, None, ts, ns, ms)
-        omega_map = max_ap(omegas, prior, ts, ns, ms)
+        omega_mle = omega_mle(omegas, None, ts, ns, ms)
+        omega_map = omega_map(omegas, prior, ts, ns, ms)
         omega_mean = mean(omegas, prior, ts, ns, ms)
         plt.plot([omega_mle], [0.0], color=(0., 1., 0.), marker='o')
         plt.plot(omegas, normalize(likelihood(omegas, ts, ns, ms)), color=(0., 1., 0.))
@@ -182,12 +217,11 @@ def main():
         plt.plot([omega_true], [0.0], color=(1., 0., 0.), marker='o')
         plt.ylim(bottom=0.)
         plt.show()
-    
+        '''
     elif whichthing == 1:
         t_change_idx = ts.index(None)
         tlist = np.arange(0.1, 25., 0.1)
-        estimators = [max_likelihood, max_ap, mean, fit_unweighted, fit_weighted]
-        estimator_names = ['mle', 'map', 'mmse', 'fit1', 'fit2']
+        
         avg_losses = [[] for i in range(0, len(estimators))]
         avg_loss_vars = [[] for i in range(0, len(estimators))]
         for t in tlist:
@@ -220,8 +254,6 @@ def main():
         nshots_list = np.arange(1, 25, 1, dtype=np.int64)
         t_min = 0.
         t_max = 20. * np.pi
-        estimators = [max_likelihood, max_ap, mean, fit_unweighted, fit_weighted]
-        estimator_names = ['mle', 'map', 'mmse', 'fit1', 'fit2']
         avg_losses = [[] for i in range(0, len(estimators))]
         avg_loss_vars = [[] for i in range(0, len(estimators))]
         for nshots in nshots_list:
