@@ -11,6 +11,15 @@ def plot_measure_time(b):
     plt.legend()
     plt.show()
 
+def plot_measure_number(b):
+    for loss, var, nm in zip(b.avg_losses, b.avg_loss_vars, b.estimator_names):
+        plt.errorbar(b.nlist, loss, yerr=np.sqrt(var), capsize=2, label=nm)
+    #plt.ylim(bottom=0.0)
+    plt.yscale('log')
+    plt.xscale('log')
+    plt.legend()
+    plt.show()
+
 def plot_shot_number(b):
     for loss, var, nm in zip(b.avg_losses, b.avg_loss_vars, b.estimator_names):
         plt.errorbar(b.nshots_list, loss, yerr=np.sqrt(var), capsize=2, label=nm)
@@ -38,6 +47,7 @@ def plot_measurement_performance(b):
 
 plotfns = {
     'measure_time': plot_measure_time,
+    'measure_number': plot_measure_number,
     'shot_number': plot_shot_number,
     't_theta_loss': plot_t_theta_loss,
     'measurement_performance': plot_measurement_performance

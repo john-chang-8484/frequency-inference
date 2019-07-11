@@ -209,8 +209,8 @@ def avg_t_loss_all_omega(theta, omegas, prior, strat, estimators, runs=1000):
 
 # NOTE: assumes unvarying omega
 def main():
-    ts = [7.9]
-    ns = [20]
+    ts = [None]
+    ns = [100]
     omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
     
@@ -220,7 +220,7 @@ def main():
     t_estimators = [t_omega_mle, t_omega_map, t_omega_mmse, t_omega_fit_unweighted, t_omega_fit_weighted, t_mmse]
     t_estimator_names = ['omega_mle', 'omega_map', 'omega_mmse', 'omega_fit_unweighted', 'omega_fit_weighted', 'mmse']
     
-    whichthing = 0
+    whichthing = 1
     
     if whichthing == 0:
         omega_true = sample_dist(omegas, prior)
@@ -356,6 +356,36 @@ def main():
             't_min': t_min,
             't_max': t_max,
             'plottype': 'measurement_performance'
+        }
+        save_data(data, get_filepath(data['plottype']))
+    
+    elif whichthing == 5:
+        n_change_idx = ns.index(None)
+        nlist = np.arange(1, 200, 1, dtype=np.int64)
+        avg_losses = [[] for i in range(0, len(estimators))]
+        avg_loss_vars = [[] for i in range(0, len(estimators))]
+        for n in nlist:
+            print(n)
+            ns[n_change_idx] = n
+            avgloss, avgloss_var = avg_loss_all_omega(omegas, prior,
+                (ts, ns), estimators, 1000)
+            for i in range(0, len(estimators)):
+                avg_losses[i].append(avgloss[i])
+                avg_loss_vars[i].append(avgloss_var[i])
+        
+        ns[n_change_idx] = None
+        data = {
+            'omega_min': omega_min,
+            'omega_max': omega_max,
+            'ts': ts,
+            'ns': ns,
+            'omegas': omegas,
+            'prior': prior,
+            'nlist': nlist,
+            'estimator_names': estimator_names,
+            'avg_losses': avg_losses,
+            'avg_loss_vars': avg_loss_vars,
+            'plottype': 'measure_number'
         }
         save_data(data, get_filepath(data['plottype']))
         
