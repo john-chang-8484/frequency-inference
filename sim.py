@@ -9,6 +9,7 @@ from util import save_data, get_filepath
 # constants:
 omega_min = 0.8     # [1/s]
 omega_max = 1.2     # [1/s]
+max_fit_iter = 20   # maximum number of times to iterate fit
 
 
 # normalize a discrete probability distribution
@@ -65,7 +66,7 @@ def log_likelihood(omega, ts, ns, measurements):
     return ans
 
 # NOTE: assumes unvarying omega
-def likelihood(omega, ts, ns, measurements):
+def get_likelihood(omega, ts, ns, measurements):
     return np.exp(log_likelihood(omega, ts, ns, measurements))
 
 ###############################################################################
@@ -81,13 +82,13 @@ def omega_mle(omegas, prior, ts, ns, measurements):
 # maximum a posteriori estimator for omega
 # takes a set of measurements at times ts, and numbers ns
 def omega_map(omegas, prior, ts, ns, measurements):
-    post = get_posterior(prior, likelihood(omegas, ts, ns, measurements))
+    post = get_posterior(prior, get_likelihood(omegas, ts, ns, measurements))
     return omegas[np.argmax(post)]
 
 # estimates omega at the mean of the posterior dist
 # takes a set of measurements at times ts, and numbers ns
 def omega_mmse(omegas, prior, ts, ns, measurements):
-    post = get_posterior(prior, likelihood(omegas, ts, ns, measurements))
+    post = get_posterior(prior, get_likelihood(omegas, ts, ns, measurements))
     return np.sum(omegas * post, axis=-1)
 
 # perform a fit based on the probability estimators
@@ -165,7 +166,7 @@ def t_omega_fit_weighted(theta, omegas, prior, ts, ns, measurements):
 
 # estimate t_theta by taking the mean of the posterior t_theta distribution
 def t_mmse(theta, omegas, prior, ts, ns, measurements):
-    post = get_posterior(prior, likelihood(omegas, ts, ns, measurements))
+    post = get_posterior(prior, get_likelihood(omegas, ts, ns, measurements))
     return np.sum((2. * theta / omegas) * post, axis=-1)
 
 ##                                                                           ##
@@ -208,8 +209,8 @@ def avg_t_loss_all_omega(theta, omegas, prior, strat, estimators, runs=1000):
 
 # NOTE: assumes unvarying omega
 def main():
-    ts = [1.0, 4.5]
-    ns = [20, 20]
+    ts = [7.9]
+    ns = [20]
     omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
     
@@ -219,28 +220,25 @@ def main():
     t_estimators = [t_omega_mle, t_omega_map, t_omega_mmse, t_omega_fit_unweighted, t_omega_fit_weighted, t_mmse]
     t_estimator_names = ['omega_mle', 'omega_map', 'omega_mmse', 'omega_fit_unweighted', 'omega_fit_weighted', 'mmse']
     
-    whichthing = 3
+    whichthing = 0
     
     if whichthing == 0:
-        pass
-        '''
         omega_true = sample_dist(omegas, prior)
         print('true omega:', omega_true)
         ms = many_measure(omega_true, ts, ns)
         print(ms)
-        omega_mle = omega_mle(omegas, None, ts, ns, ms)
-        omega_map = omega_map(omegas, prior, ts, ns, ms)
-        omega_mean = mean(omegas, prior, ts, ns, ms)
-        plt.plot([omega_mle], [0.0], color=(0., 1., 0.), marker='o')
-        plt.plot(omegas, normalize(likelihood(omegas, ts, ns, ms)), color=(0., 1., 0.))
-        plt.plot([omega_map], [0.0], color=(0., 0., 1.), marker='o')
-        plt.plot([omega_mean], [0.0], color=(0.5, 0.0, 1.), marker='o')
-        plt.plot(omegas, get_posterior(prior, likelihood(omegas, ts, ns, ms)), color=(0., 0., 1.))
-        plt.plot(omegas, prior, color=(1., 0., 0.))
-        plt.plot([omega_true], [0.0], color=(1., 0., 0.), marker='o')
+        likelihood = normalize(get_likelihood(omegas, ts, ns, ms))
+        posterior = get_posterior(prior, likelihood)
+        for estimator, nm in zip(estimators, estimator_names):
+            plt.plot([estimator(omegas, prior, ts, ns, ms)], prior[0], marker='o', label=nm)
+        plt.plot(omegas, prior, label='prior')
+        plt.plot(omegas, likelihood, label='likelihood')
+        plt.plot(omegas, posterior, label='posterior')
+        plt.plot(omega_true, prior[0], marker='*', markersize=10, label='true_omega', color=(0., 0., 0.))
+        plt.legend()
         plt.ylim(bottom=0.)
         plt.show()
-        '''
+        
     elif whichthing == 1:
         t_change_idx = ts.index(None)
         tlist = np.arange(0.1, 25., 0.1)
@@ -274,9 +272,9 @@ def main():
     
     elif whichthing == 2:
         N = 100
-        nshots_list = np.arange(1, 25, 1, dtype=np.int64)
+        nshots_list = np.array([1, 2, 4, 5, 10, 20, 25, 50, 100], dtype=np.int64)
         t_min = 0.
-        t_max = 20. * np.pi
+        t_max = 4. * np.pi
         avg_losses = [[] for i in range(0, len(estimators))]
         avg_loss_vars = [[] for i in range(0, len(estimators))]
         for nshots in nshots_list:
@@ -322,10 +320,42 @@ def main():
             'theta_list': theta_list,
             'omegas': omegas,
             'prior': prior,
+            'ts': ts,
+            'ns': ns,
             't_estimator_names': t_estimator_names,
             'avg_losses': avg_losses,
             'avg_loss_vars': avg_loss_vars,
             'plottype': 't_theta_loss'
+        }
+        save_data(data, get_filepath(data['plottype']))
+    
+    elif whichthing == 4:
+        N_list = np.arange(5, 100, 1, dtype=np.int64)
+        t_min = 0.
+        t_max = 4. * np.pi
+        avg_losses = [[] for i in range(0, len(estimators))]
+        avg_loss_vars = [[] for i in range(0, len(estimators))]
+        for N in N_list:
+            print(N)
+            ts = np.linspace(t_max, t_min, N, endpoint=False)
+            ns = np.ones(N, dtype=np.int64)
+            avgloss, avgloss_var = avg_loss_all_omega(omegas, prior,
+                (ts, ns), estimators, 1000)
+            for i in range(0, len(estimators)):
+                avg_losses[i].append(avgloss[i])
+                avg_loss_vars[i].append(avgloss_var[i])
+        data = {
+            'omega_min': omega_min,
+            'omega_max': omega_max,
+            'N_list': N_list,
+            'omegas': omegas,
+            'prior': prior,
+            'estimator_names': estimator_names,
+            'avg_losses': avg_losses,
+            'avg_loss_vars': avg_loss_vars,
+            't_min': t_min,
+            't_max': t_max,
+            'plottype': 'measurement_performance'
         }
         save_data(data, get_filepath(data['plottype']))
         
