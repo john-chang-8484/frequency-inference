@@ -209,8 +209,8 @@ def avg_t_loss_all_omega(theta, omegas, prior, strat, estimators, runs=1000):
 
 # NOTE: assumes unvarying omega
 def main():
-    ts = [None]
-    ns = [100]
+    ts = [7.5]
+    ns = [None]
     omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
     
@@ -220,7 +220,7 @@ def main():
     t_estimators = [t_omega_mle, t_omega_map, t_omega_mmse, t_omega_fit_unweighted, t_omega_fit_weighted, t_mmse]
     t_estimator_names = ['omega_mle', 'omega_map', 'omega_mmse', 'omega_fit_unweighted', 'omega_fit_weighted', 'mmse']
     
-    whichthing = 1
+    whichthing = 5
     
     if whichthing == 0:
         omega_true = sample_dist(omegas, prior)
