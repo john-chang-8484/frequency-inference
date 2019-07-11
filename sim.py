@@ -182,14 +182,14 @@ def avg_loss_all_omega(omegas, prior, strat, estimators, runs=1000):
     for r in range(0, runs):
         omega = sample_dist(omegas, prior)
         ms = many_measure(omega, ts, ns)
-        # each estimator sees the same sun
+        # each estimator sees the same measurements
         for i, estimator in enumerate(estimators):
             omega_est = estimator(omegas, prior, ts, ns, ms)
             avg[i] += (omega - omega_est)**2
             avgsq[i] += (omega - omega_est)**4
     return avg / runs, ((avgsq / runs) - (avg / runs)**2) / runs
 
-# like avg_loss_all_omega, but the loss is (t_theta_est - t_theta)**2
+# like avg_loss_all_omega, but the loss is (np.sin(omega * t_theta_est / 2.) - np.sin(theta))**2
 def avg_t_loss_all_omega(theta, omegas, prior, strat, estimators, runs=1000):
     ts, ns = strat
     avg = np.zeros(len(estimators), dtype=np.float64)
@@ -198,18 +198,18 @@ def avg_t_loss_all_omega(theta, omegas, prior, strat, estimators, runs=1000):
         omega = sample_dist(omegas, prior)
         t_theta = 2. * theta / omega
         ms = many_measure(omega, ts, ns)
-        # each estimator sees the same sun
+        # each estimator sees the same measurements
         for i, estimator in enumerate(estimators):
             t_theta_est = estimator(theta, omegas, prior, ts, ns, ms)
-            avg[i] += (t_theta_est - t_theta)**2
-            avgsq[i] += (t_theta_est - t_theta)**4
+            avg[i] += (np.sin(omega * t_theta_est / 2.) - np.sin(theta))**2
+            avgsq[i] += (np.sin(omega * t_theta_est / 2.) - np.sin(theta))**4
     return avg / runs, ((avgsq / runs) - (avg / runs)**2) / runs
 
 
 # NOTE: assumes unvarying omega
 def main():
-    ts = [7.9]
-    ns = [100]
+    ts = [1.0, 4.5]
+    ns = [20, 20]
     omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
     
@@ -306,7 +306,7 @@ def main():
         save_data(data, get_filepath(data['plottype']))
     
     elif whichthing == 3:
-        theta_list = np.linspace(0., 2*np.pi)
+        theta_list = np.linspace(0., 4. * np.pi, 100)
         avg_losses = [[] for i in range(0, len(t_estimators))]
         avg_loss_vars = [[] for i in range(0, len(t_estimators))]
         for theta in theta_list:
