@@ -156,24 +156,7 @@ def t_mmse(theta, omegas, prior, ts, ns, measurements):
 ###############################################################################
 
 
-# given a prior on omega and a measurement strategy, compute the average loss using monte-carlo
-# loss is the squared difference between estimator and true
-# each estimator is a fn taking (omegas, prior, ts, ns, measurements)
-def avg_loss_all_omega(omegas, prior, strat, estimators, runs=1000):
-    ts, ns = strat
-    avg = np.zeros(len(estimators), dtype=np.float64)
-    avgsq = np.zeros(len(estimators), dtype=np.float64)
-    for r in range(0, runs):
-        omega = sample_dist(omegas, prior)
-        ms = many_measure(omega, ts, ns)
-        # each estimator sees the same measurements
-        for i, estimator in enumerate(estimators):
-            omega_est = estimator(omegas, prior, ts, ns, ms)
-            avg[i] += (omega - omega_est)**2
-            avgsq[i] += (omega - omega_est)**4
-    return avg / runs, ((avgsq / runs) - (avg / runs)**2) / runs
-
-# like avg_loss_all_omega, but the loss is (np.sin(omega * t_theta_est / 2.) - np.sin(theta))**2
+# like avg_loss, but the loss is (np.sin(omega * t_theta_est / 2.) - np.sin(theta))**2
 def avg_t_loss_all_omega(theta, omegas, prior, strat, estimators, runs=1000):
     ts, ns = strat
     avg = np.zeros(len(estimators), dtype=np.float64)
@@ -190,8 +173,10 @@ def avg_t_loss_all_omega(theta, omegas, prior, strat, estimators, runs=1000):
     return avg / runs, ((avgsq / runs) - (avg / runs)**2) / runs
 
 
-# like avg_loss_all_omega, but allows for random strategies and for exception handling
-# get strat is fn that produces a strategy
+# given a prior on omega and a measurement strategy, compute the average loss using monte-carlo
+# loss is the squared difference between estimator and true
+# each estimator is a fn taking (omegas, prior, ts, ns, measurements)
+# get strat is fn that produces a strategy, calls to random will be different with every run
 def avg_loss(omegas, prior, get_strat, estimators, runs=1000):
     avg = np.zeros(len(estimators), dtype=np.float64)
     avgsq = np.zeros(len(estimators), dtype=np.float64)
@@ -226,6 +211,7 @@ def avg_loss_of_x(xlist, omegas, prior, get_get_strat, estimators, runs=1000):
             avg_loss_vars[i].append(avgloss_var[i])
     return avg_losses, avg_loss_vars
 
+
 def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimators, estimator_names, runs=1000):
     avg_losses, avg_loss_vars = avg_loss_of_x(xlist, omegas, prior, get_get_strat, estimators, runs)
     data = {
@@ -243,7 +229,8 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
     }
     save_data(data, get_filepath(data['plottype']))
 
-# NOTE: assumes unvarying omega
+
+
 def main():
     ts = [None]
     ns = [100]
@@ -256,7 +243,7 @@ def main():
     t_estimators = [t_omega_mle, t_omega_map, t_omega_mmse, t_omega_fit_unweighted, t_omega_fit_weighted, t_mmse]
     t_estimator_names = ['omega_mle', 'omega_map', 'omega_mmse', 'omega_fit_unweighted', 'omega_fit_weighted', 'mmse']
     
-    whichthing = 1
+    whichthing = 5
     
     if whichthing == 0:
         omega_true = sample_dist(omegas, prior)
@@ -276,7 +263,6 @@ def main():
         plt.show()
         
     elif whichthing == 1:
-        t_change_idx = ts.index(None)
         tlist = np.arange(0.1, 10., 1.0)
         def get_get_strat(t):
             def get_strat():
@@ -332,64 +318,29 @@ def main():
     
     elif whichthing == 4:
         N_list = np.arange(1, 100, 1, dtype=np.int64)
-        t_min = 0.
-        t_max = 4. * np.pi
-        avg_losses = [[] for i in range(0, len(estimators))]
-        avg_loss_vars = [[] for i in range(0, len(estimators))]
-        for N in N_list:
-            print(N)
-            ts = np.linspace(t_max, t_min, N, endpoint=False)
-            ns = np.ones(N, dtype=np.int64)
-            avgloss, avgloss_var = avg_loss_all_omega(omegas, prior,
-                (ts, ns), estimators, 1000)
-            for i in range(0, len(estimators)):
-                avg_losses[i].append(avgloss[i])
-                avg_loss_vars[i].append(avgloss_var[i])
-        data = {
-            'omega_min': omega_min,
-            'omega_max': omega_max,
-            'N_list': N_list,
-            'omegas': omegas,
-            'prior': prior,
-            'estimator_names': estimator_names,
-            'avg_losses': avg_losses,
-            'avg_loss_vars': avg_loss_vars,
-            't_min': t_min,
-            't_max': t_max,
-            'plottype': 'measurement_performance'
-        }
-        save_data(data, get_filepath(data['plottype']))
+        def get_get_strat(N):
+            t_min = 0.
+            t_max = 4. * np.pi
+            def get_strat():
+                ts = np.random.uniform(t_min, t_max, N)
+                ns = np.ones(N, dtype=np.int64)
+                return ts, ns
+            return get_strat
+        save_x_trace('measurement_performance', N_list, 'N_list',
+            omegas, prior, get_get_strat, estimators, estimator_names)
     
     elif whichthing == 5:
-        n_change_idx = ns.index(None)
-        nlist = np.arange(1, 200, 1, dtype=np.int64)
-        avg_losses = [[] for i in range(0, len(estimators))]
-        avg_loss_vars = [[] for i in range(0, len(estimators))]
-        for n in nlist:
-            print(n)
-            ns[n_change_idx] = n
-            avgloss, avgloss_var = avg_loss_all_omega(omegas, prior,
-                (ts, ns), estimators, 1000)
-            for i in range(0, len(estimators)):
-                avg_losses[i].append(avgloss[i])
-                avg_loss_vars[i].append(avgloss_var[i])
-        
-        ns[n_change_idx] = None
-        data = {
-            'omega_min': omega_min,
-            'omega_max': omega_max,
-            'ts': ts,
-            'ns': ns,
-            'omegas': omegas,
-            'prior': prior,
-            'nlist': nlist,
-            'estimator_names': estimator_names,
-            'avg_losses': avg_losses,
-            'avg_loss_vars': avg_loss_vars,
-            'plottype': 'measure_number'
-        }
-        save_data(data, get_filepath(data['plottype']))
-        
+        nlist = np.arange(1, 100, 1, dtype=np.int64)
+        def get_get_strat(n):
+            def get_strat():
+                ts = [7.9]
+                ns = [n]
+                return ts, ns
+            return get_strat
+
+        save_x_trace('measure_number', nlist, 'nlist',
+            omegas, prior, get_get_strat, estimators, estimator_names)
+
 
 
 if __name__ == '__main__':
