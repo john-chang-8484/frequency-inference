@@ -4,6 +4,7 @@ from scipy.special import gammaln
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from util import save_data, get_filepath
+import inspect
 
 
 # constants:
@@ -95,19 +96,10 @@ def omega_mmse(omegas, prior, ts, ns, measurements):
 # p_est are the estimated probabilities
 def omega_fit_unweighted(omegas, prior, ts, ns, measurements):
     p_est = (1. + np.array(measurements)) / (2. + np.array(ns)) # (beta distribution mean)
-    inloop = True
-    errcount = 0
-    while inloop:
-        try:
-            omega_est, uncertainty = curve_fit(
-                prob_excited, ts, p_est,
-                p0=[1.], method='lm'
-            )
-            inloop = False
-        except RuntimeError:
-            errcount += 1
-            p_est += 0.001 * random() # try again with slightly different values
-            print('\t', errcount, '!')
+    omega_est, uncertainty = curve_fit(
+        prob_excited, ts, p_est,
+        p0=[1.], method='lm'
+    )
     return omega_est[0]
 
 # perform a fit based on the probability estimators
@@ -117,19 +109,10 @@ def omega_fit_weighted(omegas, prior, ts, ns, measurements):
     n = np.array(ns)
     p_est = (1. + m) / (2. + n)
     var_est = (m * (n - m) + n + 1.) / ((2 + n)**2 * (3 + n)) # (beta distribution variance)
-    inloop = True
-    errcount = 0
-    while inloop:
-        try:
-            omega_est, uncertainty = curve_fit(
-                prob_excited, ts, p_est, sigma=np.sqrt(var_est),
-                p0=[1.], method='lm'
-            )
-            inloop = False
-        except RuntimeError:
-            errcount += 1
-            p_est += 0.001 * random() # try again with slightly different values
-            print('\t', errcount, '!')
+    omega_est, uncertainty = curve_fit(
+        prob_excited, ts, p_est, sigma=np.sqrt(var_est),
+        p0=[1.], method='lm'
+    )
     return omega_est[0]
 
 ##                                                                           ##
@@ -207,6 +190,59 @@ def avg_t_loss_all_omega(theta, omegas, prior, strat, estimators, runs=1000):
     return avg / runs, ((avgsq / runs) - (avg / runs)**2) / runs
 
 
+# like avg_loss_all_omega, but allows for random strategies and for exception handling
+# get strat is fn that produces a strategy
+def avg_loss(omegas, prior, get_strat, estimators, runs=1000):
+    avg = np.zeros(len(estimators), dtype=np.float64)
+    avgsq = np.zeros(len(estimators), dtype=np.float64)
+    no_exception_yet = [True] * len(estimators) # keep track of which estimators have had exceptions so far
+    for r in range(0, runs):
+        ts, ns = get_strat()
+        omega = sample_dist(omegas, prior)
+        ms = many_measure(omega, ts, ns)
+        # each estimator sees the same measurements
+        for i, estimator in enumerate(estimators):
+            if no_exception_yet[i]:
+                try:
+                    omega_est = estimator(omegas, prior, ts, ns, ms)
+                    avg[i] += (omega - omega_est)**2
+                    avgsq[i] += (omega - omega_est)**4
+                except RuntimeError:
+                    no_exception_yet[i] = False
+                    avg[i] = np.nan
+                    avgsq[i] = np.nan
+    return avg / runs, ((avgsq / runs) - (avg / runs)**2) / runs
+
+# get_get_strat is fn of x
+def avg_loss_of_x(xlist, omegas, prior, get_get_strat, estimators, runs=1000):
+    vg_losses = [[] for i in range(0, len(estimators))]
+    avg_loss_vars = [[] for i in range(0, len(estimators))]
+    for x in xlist:
+        print(x)
+        avgloss, avgloss_var = avg_loss_all_omega(omegas, prior,
+            get_get_strat(x), estimators, 1000)
+        for i in range(0, len(estimators)):
+            avg_losses[i].append(avgloss[i])
+            avg_loss_vars[i].append(avgloss_var[i])
+    return avg_losses, avg_loss_vars
+
+def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimators, estimator_names, runs=1000):
+    avg_losses, avg_loss_vars = avg_loss_of_x(xlist, omegas, prior, get_get_strat, estimators, runs)
+    data = {
+        'omega_min': omega_min,
+        'omega_max': omega_max,
+        'omegas': omegas,
+        'prior': prior,
+        xlistnm: xlist,
+        'estimator_names': estimator_names,
+        'get_get_strat': inspect.get_source(get_get_strat),
+        'runs': runs,
+        'avg_losses': avg_losses,
+        'avg_loss_vars': avg_loss_vars,
+        'plottype': plottype
+    }
+    save_data(data, get_filepath(data['plottype']))
+
 # NOTE: assumes unvarying omega
 def main():
     ts = [7.5]
@@ -220,7 +256,7 @@ def main():
     t_estimators = [t_omega_mle, t_omega_map, t_omega_mmse, t_omega_fit_unweighted, t_omega_fit_weighted, t_mmse]
     t_estimator_names = ['omega_mle', 'omega_map', 'omega_mmse', 'omega_fit_unweighted', 'omega_fit_weighted', 'mmse']
     
-    whichthing = 5
+    whichthing = 4
     
     if whichthing == 0:
         omega_true = sample_dist(omegas, prior)
@@ -279,10 +315,12 @@ def main():
         avg_loss_vars = [[] for i in range(0, len(estimators))]
         for nshots in nshots_list:
             print(nshots, nshots * (N // nshots))
-            ts = np.linspace(t_max, t_min, nshots, endpoint=False)
-            ns = (N // nshots) * np.ones(nshots, dtype=np.int64)
-            avgloss, avgloss_var = avg_loss_all_omega(omegas, prior,
-                (ts, ns), estimators, 1000)
+            def get_strat():
+                ts = np.random.uniform(t_min, t_max, nshots)
+                ns = (N // nshots) * np.ones(nshots, dtype=np.int64)
+                return ts, ns
+            avgloss, avgloss_var = avg_loss(omegas, prior,
+                get_strat, estimators, 1000)
             for i in range(0, len(estimators)):
                 avg_losses[i].append(avgloss[i])
                 avg_loss_vars[i].append(avgloss_var[i])
@@ -330,7 +368,7 @@ def main():
         save_data(data, get_filepath(data['plottype']))
     
     elif whichthing == 4:
-        N_list = np.arange(5, 100, 1, dtype=np.int64)
+        N_list = np.arange(1, 100, 1, dtype=np.int64)
         t_min = 0.
         t_max = 4. * np.pi
         avg_losses = [[] for i in range(0, len(estimators))]
