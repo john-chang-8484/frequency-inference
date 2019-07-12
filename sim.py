@@ -205,7 +205,7 @@ def avg_loss_of_x(xlist, omegas, prior, get_get_strat, estimators, runs=1000):
     for x in xlist:
         print(x)
         avgloss, avgloss_var = avg_loss(omegas, prior,
-            get_get_strat(x), estimators, 1000)
+            get_get_strat(x), estimators, runs)
         for i in range(0, len(estimators)):
             avg_losses[i].append(avgloss[i])
             avg_loss_vars[i].append(avgloss_var[i])
@@ -232,8 +232,6 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
 
 
 def main():
-    ts = [None]
-    ns = [100]
     omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
     
@@ -246,6 +244,10 @@ def main():
     whichthing = 5
     
     if whichthing == 0:
+        ts = [7.9]
+        ns = [100]
+        omegas = np.arange(omega_min, omega_max, 0.001)
+        prior = normalize(1. + 0.*omegas)
         omega_true = sample_dist(omegas, prior)
         print('true omega:', omega_true)
         ms = many_measure(omega_true, ts, ns)
@@ -263,11 +265,11 @@ def main():
         plt.show()
         
     elif whichthing == 1:
-        tlist = np.arange(0.1, 10., 1.0)
+        tlist = np.arange(0.1, 28., 0.1)
         def get_get_strat(t):
             def get_strat():
-                ts = [t]
-                ns = [100]
+                ts = [7.3, t]
+                ns = [50, 50]
                 return ts, ns
             return get_strat
 
@@ -330,16 +332,16 @@ def main():
             omegas, prior, get_get_strat, estimators, estimator_names)
     
     elif whichthing == 5:
-        nlist = np.arange(1, 100, 1, dtype=np.int64)
+        nlist = np.arange(15, 40, 1, dtype=np.int64)
         def get_get_strat(n):
             def get_strat():
-                ts = [7.9]
+                ts = [7.3]
                 ns = [n]
                 return ts, ns
             return get_strat
 
         save_x_trace('measure_number', nlist, 'nlist',
-            omegas, prior, get_get_strat, estimators, estimator_names)
+            omegas, prior, get_get_strat, estimators, estimator_names, 100000)
 
 
 

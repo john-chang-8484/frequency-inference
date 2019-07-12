@@ -25,6 +25,7 @@ def plot_shot_number(b):
         plt.errorbar(b.nshots_list, loss, yerr=np.sqrt(var), capsize=2, label=nm)
     #plt.ylim(bottom=0.0)
     plt.yscale('log')
+    plt.xscale('log')
     plt.legend()
     plt.show()
 
