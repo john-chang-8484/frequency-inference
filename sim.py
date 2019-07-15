@@ -10,7 +10,7 @@ import inspect
 # constants:
 omega_min = 0.8     # [1/s]
 omega_max = 1.2     # [1/s]
-max_fit_iter = 20   # maximum number of times to iterate fit
+v_0       = 0.3     # [1/s] # the noise in omega (essentially a decoherence rate)
 
 
 # normalize a discrete probability distribution
@@ -40,7 +40,7 @@ def get_posterior(prior, likelihood):
 
 # probability of excitation at time t for a given value of omega
 def prob_excited(t, omega):
-    return np.sin(omega * t * 0.5)**2
+    return 0.5 * (1. - (np.exp(- v_0 * t) * np.cos(omega * t)))
 
 
 # returns the number of excited states measured
@@ -217,6 +217,7 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
     data = {
         'omega_min': omega_min,
         'omega_max': omega_max,
+        'v_0': v_0,
         'omegas': omegas,
         'prior': prior,
         xlistnm: xlist,
@@ -241,7 +242,7 @@ def main():
     t_estimators = [t_omega_mle, t_omega_map, t_omega_mmse, t_omega_fit_unweighted, t_omega_fit_weighted, t_mmse]
     t_estimator_names = ['omega_mle', 'omega_map', 'omega_mmse', 'omega_fit_unweighted', 'omega_fit_weighted', 'mmse']
     
-    whichthing = 5
+    whichthing = 1
     
     if whichthing == 0:
         ts = [7.9]
@@ -268,8 +269,8 @@ def main():
         tlist = np.arange(0.1, 28., 0.1)
         def get_get_strat(t):
             def get_strat():
-                ts = [7.3, t]
-                ns = [50, 50]
+                ts = [t]
+                ns = [100]
                 return ts, ns
             return get_strat
 
@@ -306,6 +307,7 @@ def main():
         data = {
             'omega_min': omega_min,
             'omega_max': omega_max,
+            'v_0': v_0,
             'theta_list': theta_list,
             'omegas': omegas,
             'prior': prior,
