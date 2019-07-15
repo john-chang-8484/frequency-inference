@@ -11,6 +11,7 @@ import inspect
 omega_min = 0.8     # [1/s]
 omega_max = 1.2     # [1/s]
 v_0       = 0.3     # [1/s] # the noise in omega (essentially a decoherence rate)
+var_omega = 0.001   # [s^2/u] # the variance in omega per u, where u is the time between measurements
 
 
 # normalize a discrete probability distribution
@@ -47,13 +48,14 @@ def prob_excited(t, omega):
 def measure(omega, t, n):
     return np.random.binomial(n, prob_excited(t, omega))
 
-# make many measurements given a list of ts, ns
-def many_measure(omega, ts, ns):
-    return np.array([measure(omega, t, n) for t, n in zip(ts, ns)])
+# make many measurements given a list of omegas, ts, ns
+# assume spacing between measurements is large
+def many_measure(omega_list, ts, ns):
+    return np.array([measure(omega, t, n) for omega, t, n in zip(omega_list, ts, ns)])
 
 
 # gives the log-likelihood of a particular omega, given some set of measurements
-# NOTE: assumes unvarying omega 
+# NOTE: assumes unvarying omega
 def log_likelihood(omega, ts, ns, measurements):
     ans = 0.0
     for t, n, m in zip(ts, ns, measurements):
@@ -155,7 +157,7 @@ def t_mmse(theta, omegas, prior, ts, ns, measurements):
 ##                                                                           ##
 ###############################################################################
 
-
+'''
 # like avg_loss, but the loss is (np.sin(omega * t_theta_est / 2.) - np.sin(theta))**2
 def avg_t_loss_all_omega(theta, omegas, prior, strat, estimators, runs=1000):
     ts, ns = strat
@@ -171,27 +173,37 @@ def avg_t_loss_all_omega(theta, omegas, prior, strat, estimators, runs=1000):
             avg[i] += (np.sin(omega * t_theta_est / 2.) - np.sin(theta))**2
             avgsq[i] += (np.sin(omega * t_theta_est / 2.) - np.sin(theta))**4
     return avg / runs, ((avgsq / runs) - (avg / runs)**2) / runs
+'''
+
+def sample_omega_list(omegas, prior, length):
+    omega0 = sample_dist(omegas, prior)
+    omega_list = [omega0]
+    for i in range(1, length):
+        omega_list.append(np.clip(
+            omega_list[-1] + np.random.normal(0., np.sqrt(var_omega)),
+            omega_min, omega_max ))
+    return omega_list
 
 
 # given a prior on omega and a measurement strategy, compute the average loss using monte-carlo
-# loss is the squared difference between estimator and true
+# loss is the squared difference between estimator and omega's true *final* value
 # each estimator is a fn taking (omegas, prior, ts, ns, measurements)
-# get strat is fn that produces a strategy, calls to random will be different with every run
+# get strat is fn that produces a strategy, may make calls to random
 def avg_loss(omegas, prior, get_strat, estimators, runs=1000):
     avg = np.zeros(len(estimators), dtype=np.float64)
     avgsq = np.zeros(len(estimators), dtype=np.float64)
     no_exception_yet = [True] * len(estimators) # keep track of which estimators have had exceptions so far
     for r in range(0, runs):
         ts, ns = get_strat()
-        omega = sample_dist(omegas, prior)
-        ms = many_measure(omega, ts, ns)
+        omega_list = sample_omega_list(omegas, prior, len(ts))
+        ms = many_measure(omega_list, ts, ns)
         # each estimator sees the same measurements
         for i, estimator in enumerate(estimators):
             if no_exception_yet[i]:
                 try:
                     omega_est = estimator(omegas, prior, ts, ns, ms)
-                    avg[i] += (omega - omega_est)**2
-                    avgsq[i] += (omega - omega_est)**4
+                    avg[i] += (omega_list[-1] - omega_est)**2
+                    avgsq[i] += (omega_list[-1] - omega_est)**4
                 except RuntimeError:
                     no_exception_yet[i] = False
                     avg[i] = np.nan
@@ -218,6 +230,7 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
         'omega_min': omega_min,
         'omega_max': omega_max,
         'v_0': v_0,
+        'var_omega': var_omega,
         'omegas': omegas,
         'prior': prior,
         xlistnm: xlist,
@@ -269,8 +282,8 @@ def main():
         tlist = np.arange(0.1, 28., 0.1)
         def get_get_strat(t):
             def get_strat():
-                ts = [t]
-                ns = [100]
+                ts = [t] * 30
+                ns = [1] * 30
                 return ts, ns
             return get_strat
 
@@ -308,6 +321,7 @@ def main():
             'omega_min': omega_min,
             'omega_max': omega_max,
             'v_0': v_0,
+            'var_omega': var_omega,
             'theta_list': theta_list,
             'omegas': omegas,
             'prior': prior,
