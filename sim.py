@@ -341,7 +341,7 @@ def main():
             return get_strat
 
         save_x_trace('measure_number', nlist, 'nlist',
-            omegas, prior, get_get_strat, estimators, estimator_names, 100000)
+            omegas, prior, get_get_strat, estimators, estimator_names)
 
 
 
