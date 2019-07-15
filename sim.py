@@ -11,7 +11,7 @@ import inspect
 omega_min = 0.8     # [1/s]
 omega_max = 1.2     # [1/s]
 v_0       = 0.3     # [1/s] # the noise in omega (essentially a decoherence rate)
-var_omega = 0.001   # [s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.0001  # [s^2/u] # the variance in omega per u, where u is the time between measurements
 
 
 # normalize a discrete probability distribution
@@ -41,7 +41,7 @@ def get_posterior(prior, likelihood):
 
 # probability of excitation at time t for a given value of omega
 def prob_excited(t, omega):
-    return 0.5 * (1. - (np.exp(- v_0 * t) * np.cos(omega * t)))
+    return 0.5 * (1. - (np.exp(- 0.5 * v_0 * t) * np.cos(omega * t)))
 
 
 # returns the number of excited states measured
@@ -72,8 +72,35 @@ def log_likelihood(omega, ts, ns, measurements):
 def get_likelihood(omega, ts, ns, measurements):
     return np.exp(log_likelihood(omega, ts, ns, measurements))
 
+
+# update prior given a measurement at time t, with n hits, result m
+def update(omegas, prior, t, n, m):
+    pe = prob_excited(t, omegas)
+    log_likely = (
+        gammaln(1 + n) - gammaln(1 + m) - gammaln(1 + n - m) +  # binomial coefficient
+        m * np.log(pe) +             # p^m
+        (n - m) * np.log(1. - pe)    # (1-p)^(n-m)
+    )
+    log_likely[np.isnan(log_likely)] = -np.inf
+    return normalize(prior * log_likely)
+
+
+# given a posterior distribution for omega at time t,
+# return the prob dist for omega at time t+u
+def wait_u(omegas, dist):
+    delta_omega = omegas[1] - omegas[0]
+    dist_new = np.copy(dist)
+    dist_new[1:-1] += (var_omega / (2. * delta_omega**2)) * (
+        dist[2:] + dist[:-2] - 2.*dist[1:-1] )
+    dist_new[0] += (var_omega / (2. * delta_omega**2)) * (dist[1] - dist[0])
+    dist_new[-1] += (var_omega / (2. * delta_omega**2)) * (dist[-2] - dist[-1])
+    return dist_new
+
+
 ###############################################################################
 ##          Estimators for Omega:                                            ##
+
+# TODO: update estimators to account for omega spread
 
 # maximum likelihood estimator for omega
 # takes a set of measurements at times ts, and numbers ns
@@ -255,7 +282,7 @@ def main():
     t_estimators = [t_omega_mle, t_omega_map, t_omega_mmse, t_omega_fit_unweighted, t_omega_fit_weighted, t_mmse]
     t_estimator_names = ['omega_mle', 'omega_map', 'omega_mmse', 'omega_fit_unweighted', 'omega_fit_weighted', 'mmse']
     
-    whichthing = 1
+    whichthing = 6
     
     if whichthing == 0:
         ts = [7.9]
@@ -359,6 +386,12 @@ def main():
         save_x_trace('measure_number', nlist, 'nlist',
             omegas, prior, get_get_strat, estimators, estimator_names)
 
+    elif whichthing == 6:
+        dist0 = omegas**2
+        for i in range(0, 10):
+            dist0 = wait_u(omegas, dist0)
+        plt.plot(dist0)
+        plt.show()
 
 
 if __name__ == '__main__':
