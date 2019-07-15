@@ -53,7 +53,7 @@ def many_measure(omega, ts, ns):
 
 
 # gives the log-likelihood of a particular omega, given some set of measurements
-# NOTE: assumes unvarying omega
+# NOTE: assumes unvarying omega 
 def log_likelihood(omega, ts, ns, measurements):
     ans = 0.0
     for t, n, m in zip(ts, ns, measurements):
