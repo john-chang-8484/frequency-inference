@@ -230,7 +230,7 @@ def main():
     estimators = [omega_mmse, omega_particles_mmse]
     estimator_names = ['mmse', 'particles_mmse']
     
-    whichthing = 0
+    whichthing = 1
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
