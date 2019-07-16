@@ -3,6 +3,7 @@ from random import randint, random
 from scipy.special import gammaln
 import matplotlib.pyplot as plt
 from util import save_data, get_filepath
+from plot_util import pin_plot
 import inspect
 
 
@@ -11,8 +12,6 @@ omega_min = 0.8     # [1/s]
 omega_max = 1.2     # [1/s]
 v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence rate)
 var_omega = 0.00001 # [s^2/u] # the variance in omega per u, where u is the time between measurements
-
-
 
 
 # normalize a discrete probability distribution
@@ -92,12 +91,13 @@ def get_overall_posterior(omegas, prior, ts, ns, measurements):
 
 # RULE: all fn calls should preserve normalization
 class ParticleDist:
+    size = 100
     prob_mass_limit = 0.5
-    a = 0.98 # pg 10, Christopher E Granade et al 2012 New J. Phys. 14 103013
-    def __init__(self, values, dist, num_particles):
-        self.size = num_particles
-        self.particles = np.array([sample_dist(values, dist) for i in range(num_particles)])
-        self.weights = np.ones(num_particles) / num_particles
+    a = 0.9 # pg 10, Christopher E Granade et al 2012 New J. Phys. 14 103013
+    b = 2.9  # additional fudge factor for resampling
+    def __init__(self, values, dist):
+        self.particles = np.array([sample_dist(values, dist) for i in range(self.size)])
+        self.weights = np.ones(self.size) / self.size
         self.probability_mass = 1. # fraction of probability mass remaining since last resampling
     def normalize(self):
         self.weights = normalize(self.weights)
@@ -114,17 +114,23 @@ class ParticleDist:
     def mean(self):
         return np.sum(self.weights * self.particles)
     def cov(self):
-        return np.cov(self.particles, aweights=self.weights)
+        return np.cov(self.particles, ddof=0, aweights=self.weights)
     def resample(self):
         mu = self.mean()
         sampled_particles = np.random.choice(self.particles, size=self.size, p=self.weights)
         mu_i = (self.a * sampled_particles) + ((1 - self.a) * mu)
-        epsilon = (1 - self.a**2) * self.cov() * np.random.randn(self.size)
+        epsilon = np.sqrt(self.b * self.cov() * (1. - self.a**2)) * np.random.randn(self.size) 
         self.particles = mu_i + epsilon
         self.weights = np.ones(self.size) / self.size
         self.probability_mass = 1.
         self.normalize()
 
+def get_particle_posterior(omegas, prior, ts, ns, measurements):
+    pdist = ParticleDist(omegas, prior)
+    for t, n, m in zip(ts, ns, measurements):
+        pdist.wait_u()
+        pdist.update(t, n, m)
+    return pdist
 
 ###############################################################################
 ##          Estimators for Omega:                                            ##
@@ -135,11 +141,7 @@ def omega_mmse(omegas, prior, ts, ns, measurements):
 
 # uses particle method to estimate omega
 def omega_particles_mmse(omegas, prior, ts, ns, measurements):
-    pdist = ParticleDist(omegas, prior, 100)
-    for t, n, m in zip(ts, ns, measurements):
-        pdist.wait_u()
-        pdist.update(t, n, m)
-    return pdist.mean()
+    return get_particle_posterior(omegas, prior, ts, ns, measurements).mean()
 
 ##                                                                           ##
 ###############################################################################
@@ -210,7 +212,12 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
         'runs': runs,
         'avg_losses': avg_losses,
         'avg_loss_vars': avg_loss_vars,
-        'plottype': plottype
+        'plottype': plottype,
+        'particle_params': {
+            key: vars(ParticleDist)[key]
+                for key in vars(ParticleDist)
+                if type(vars(ParticleDist)[key]) in [int, float]
+        }
     }
     save_data(data, get_filepath(data['plottype']))
 
@@ -235,8 +242,12 @@ def main():
         ms = many_measure(omega_list_true, ts, ns)
         print(ms)
         posterior = get_overall_posterior(omegas, prior, ts, ns, ms)
+        particle_post = get_particle_posterior(omegas, prior, ts, ns, ms)
         for estimator, nm in zip(estimators, estimator_names):
-            plt.plot([estimator(omegas, prior, ts, ns, ms)], prior[0], marker='o', label=nm)
+            if nm != 'particles_mmse':
+                plt.plot([estimator(omegas, prior, ts, ns, ms)], prior[0], marker='o', label=nm)
+        plt.plot(particle_post.mean(), prior[0], marker='o', label='particles_mmse')
+        pin_plot(particle_post.particles, particle_post.weights)
         plt.plot(omegas, prior, label='prior')
         plt.plot(omegas, posterior, label='posterior')
         plt.plot(omega_list_true, np.linspace(0., prior[0], len(ts)),
