@@ -1,7 +1,6 @@
 import numpy as np
 from random import randint, random
 from scipy.special import gammaln
-from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from util import save_data, get_filepath
 import inspect
@@ -10,8 +9,8 @@ import inspect
 # constants:
 omega_min = 0.8     # [1/s]
 omega_max = 1.2     # [1/s]
-v_0       = 0.3     # [1/s] # the noise in omega (essentially a decoherence rate)
-var_omega = 0.0001  # [s^2/u] # the variance in omega per u, where u is the time between measurements
+v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence rate)
+var_omega = 0.00001 # [s^2/u] # the variance in omega per u, where u is the time between measurements
 
 
 # normalize a discrete probability distribution
@@ -54,35 +53,24 @@ def many_measure(omega_list, ts, ns):
     return np.array([measure(omega, t, n) for omega, t, n in zip(omega_list, ts, ns)])
 
 
-# gives the log-likelihood of a particular omega, given some set of measurements
-# NOTE: assumes unvarying omega
-def log_likelihood(omega, ts, ns, measurements):
-    ans = 0.0
-    for t, n, m in zip(ts, ns, measurements):
-        pe = prob_excited(t, omega)
-        ans += (
-            gammaln(1 + n) - gammaln(1 + m) - gammaln(1 + n - m) +  # binomial coefficient
-            m * np.log(pe) +             # p^m
-            (n - m) * np.log(1. - pe)    # (1-p)^(n-m)
-        )
-    ans[np.isnan(ans)] = -np.inf # deal with zero values
-    return ans
-
-# NOTE: assumes unvarying omega
-def get_likelihood(omega, ts, ns, measurements):
-    return np.exp(log_likelihood(omega, ts, ns, measurements))
-
-
-# update prior given a measurement at time t, with n hits, result m
-def update(omegas, prior, t, n, m):
-    pe = prob_excited(t, omegas)
-    log_likely = (
+# gives the log-likelihood of a particular omega, given some measurement m
+def log_likelihood(omega, t, n, m):
+    pe = prob_excited(t, omega)
+    ans = (
         gammaln(1 + n) - gammaln(1 + m) - gammaln(1 + n - m) +  # binomial coefficient
         m * np.log(pe) +             # p^m
         (n - m) * np.log(1. - pe)    # (1-p)^(n-m)
     )
-    log_likely[np.isnan(log_likely)] = -np.inf
-    return normalize(prior * log_likely)
+    ans[np.isnan(ans)] = -np.inf # deal with zero values
+    return ans
+
+def get_likelihood(omega, t, n, m):
+    return np.exp(log_likelihood(omega, t, n, m))
+
+
+# update prior given a measurement at time t, with n hits, result m
+def update(omegas, prior, t, n, m):
+    return get_posterior(prior, get_likelihood(omegas, t, n, m))
 
 
 # given a posterior distribution for omega at time t,
@@ -90,11 +78,20 @@ def update(omegas, prior, t, n, m):
 def wait_u(omegas, dist):
     delta_omega = omegas[1] - omegas[0]
     dist_new = np.copy(dist)
+    # heat eq evolution
     dist_new[1:-1] += (var_omega / (2. * delta_omega**2)) * (
         dist[2:] + dist[:-2] - 2.*dist[1:-1] )
+    # boundary conditions
     dist_new[0] += (var_omega / (2. * delta_omega**2)) * (dist[1] - dist[0])
     dist_new[-1] += (var_omega / (2. * delta_omega**2)) * (dist[-2] - dist[-1])
     return dist_new
+
+
+def get_overall_posterior(omegas, prior, ts, ns, measurements):
+    post = np.copy(prior)
+    for t, n, m in zip(ts, ns, measurements):
+        post = update(omegas, wait_u(omegas, post), t, n, m)
+    return post
 
 
 ###############################################################################
@@ -102,105 +99,14 @@ def wait_u(omegas, dist):
 
 # TODO: update estimators to account for omega spread
 
-# maximum likelihood estimator for omega
-# takes a set of measurements at times ts, and numbers ns
-# prior is unused
-def omega_mle(omegas, prior, ts, ns, measurements):
-    log_likelihoods = log_likelihood(omegas, ts, ns, measurements)
-    return omegas[np.argmax(log_likelihoods)]
-
-# maximum a posteriori estimator for omega
-# takes a set of measurements at times ts, and numbers ns
-def omega_map(omegas, prior, ts, ns, measurements):
-    post = get_posterior(prior, get_likelihood(omegas, ts, ns, measurements))
-    return omegas[np.argmax(post)]
-
 # estimates omega at the mean of the posterior dist
-# takes a set of measurements at times ts, and numbers ns
 def omega_mmse(omegas, prior, ts, ns, measurements):
-    post = get_posterior(prior, get_likelihood(omegas, ts, ns, measurements))
-    return np.sum(omegas * post, axis=-1)
-
-# perform a fit based on the probability estimators
-# p_est are the estimated probabilities
-def omega_fit_unweighted(omegas, prior, ts, ns, measurements):
-    p_est = (1. + np.array(measurements)) / (2. + np.array(ns)) # (beta distribution mean)
-    omega_est, uncertainty = curve_fit(
-        prob_excited, ts, p_est,
-        p0=[1.], method='lm'
-    )
-    return omega_est[0]
-
-# perform a fit based on the probability estimators
-# p_est are the estimated probabilities
-def omega_fit_weighted(omegas, prior, ts, ns, measurements):
-    m = np.array(measurements)
-    n = np.array(ns)
-    p_est = (1. + m) / (2. + n)
-    var_est = (m * (n - m) + n + 1.) / ((2 + n)**2 * (3 + n)) # (beta distribution variance)
-    omega_est, uncertainty = curve_fit(
-        prob_excited, ts, p_est, sigma=np.sqrt(var_est),
-        p0=[1.], method='lm'
-    )
-    return omega_est[0]
+    return np.sum(omegas * get_overall_posterior(omegas, prior, ts, ns, measurements))
 
 ##                                                                           ##
 ###############################################################################
 
 
-###############################################################################
-##          Estimators for t_theta:                                          ##
-
-# estimate t_theta from maximum likelihood estimator for omega
-def t_omega_mle(theta, omegas, prior, ts, ns, measurements):
-    omega_est = omega_mle(omegas, prior, ts, ns, measurements)
-    return 2 * theta / omega_est
-
-# estimate t_theta from maximum a posteriori estimator for omega
-def t_omega_map(theta, omegas, prior, ts, ns, measurements):
-    omega_est = omega_map(omegas, prior, ts, ns, measurements)
-    return 2 * theta / omega_est
-
-# estimate t_theta from the "mean of posterior" estimator for omega
-def t_omega_mmse(theta, omegas, prior, ts, ns, measurements):
-    omega_est = omega_mmse(omegas, prior, ts, ns, measurements)
-    return 2 * theta / omega_est
-
-# estimate t_theta from the unweighted fit estimator for omega
-def t_omega_fit_unweighted(theta, omegas, prior, ts, ns, measurements):
-    omega_est = omega_fit_unweighted(omegas, prior, ts, ns, measurements)
-    return 2 * theta / omega_est
-
-# estimate t_theta from the weighted fit estimator for omega
-def t_omega_fit_weighted(theta, omegas, prior, ts, ns, measurements):
-    omega_est = omega_fit_weighted(omegas, prior, ts, ns, measurements)
-    return 2 * theta / omega_est
-
-# estimate t_theta by taking the mean of the posterior t_theta distribution
-def t_mmse(theta, omegas, prior, ts, ns, measurements):
-    post = get_posterior(prior, get_likelihood(omegas, ts, ns, measurements))
-    return np.sum((2. * theta / omegas) * post, axis=-1)
-
-##                                                                           ##
-###############################################################################
-
-'''
-# like avg_loss, but the loss is (np.sin(omega * t_theta_est / 2.) - np.sin(theta))**2
-def avg_t_loss_all_omega(theta, omegas, prior, strat, estimators, runs=1000):
-    ts, ns = strat
-    avg = np.zeros(len(estimators), dtype=np.float64)
-    avgsq = np.zeros(len(estimators), dtype=np.float64)
-    for r in range(0, runs):
-        omega = sample_dist(omegas, prior)
-        t_theta = 2. * theta / omega
-        ms = many_measure(omega, ts, ns)
-        # each estimator sees the same measurements
-        for i, estimator in enumerate(estimators):
-            t_theta_est = estimator(theta, omegas, prior, ts, ns, ms)
-            avg[i] += (np.sin(omega * t_theta_est / 2.) - np.sin(theta))**2
-            avgsq[i] += (np.sin(omega * t_theta_est / 2.) - np.sin(theta))**4
-    return avg / runs, ((avgsq / runs) - (avg / runs)**2) / runs
-'''
 
 def sample_omega_list(omegas, prior, length):
     omega0 = sample_dist(omegas, prior)
@@ -276,31 +182,26 @@ def main():
     omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
     
-    estimators = [omega_mle, omega_map, omega_mmse, omega_fit_unweighted, omega_fit_weighted]
-    estimator_names = ['mle', 'map', 'mmse', 'fit_unweighted', 'fit_weighted']
-    
-    t_estimators = [t_omega_mle, t_omega_map, t_omega_mmse, t_omega_fit_unweighted, t_omega_fit_weighted, t_mmse]
-    t_estimator_names = ['omega_mle', 'omega_map', 'omega_mmse', 'omega_fit_unweighted', 'omega_fit_weighted', 'mmse']
+    estimators = [omega_mmse]
+    estimator_names = ['mmse']
     
     whichthing = 6
     
     if whichthing == 0:
-        ts = [7.9]
-        ns = [100]
-        omegas = np.arange(omega_min, omega_max, 0.001)
+        ts = [7.9] * 30
+        ns = [1] * 30
+        omegas = np.arange(omega_min, omega_max, 0.005)
         prior = normalize(1. + 0.*omegas)
-        omega_true = sample_dist(omegas, prior)
-        print('true omega:', omega_true)
-        ms = many_measure(omega_true, ts, ns)
+        omega_list_true = sample_omega_list(omegas, prior, len(ts))
+        print('true omega:', omega_list_true)
+        ms = many_measure(omega_list_true, ts, ns)
         print(ms)
-        likelihood = normalize(get_likelihood(omegas, ts, ns, ms))
-        posterior = get_posterior(prior, likelihood)
+        posterior = get_overall_posterior(omegas, prior, ts, ns, ms)
         for estimator, nm in zip(estimators, estimator_names):
             plt.plot([estimator(omegas, prior, ts, ns, ms)], prior[0], marker='o', label=nm)
         plt.plot(omegas, prior, label='prior')
-        plt.plot(omegas, likelihood, label='likelihood')
         plt.plot(omegas, posterior, label='posterior')
-        plt.plot(omega_true, prior[0], marker='*', markersize=10, label='true_omega', color=(0., 0., 0.))
+        plt.plot(omega_list_true, np.linspace(0., prior[0], len(ts)), marker='*', markersize=10, label='true_omega', color=(0., 0., 0.))
         plt.legend()
         plt.ylim(bottom=0.)
         plt.show()
@@ -319,50 +220,14 @@ def main():
 
     
     elif whichthing == 2:
-        nshots_list = np.array([1, 2, 4, 5, 10, 20, 25, 50, 100], dtype=np.int64)
-        def get_get_strat(nshots):
-            N = 100
-            t_min = 0.
-            t_max = 4. * np.pi
-            def get_strat():
-                ts = np.random.uniform(t_min, t_max, nshots)
-                ns = (N // nshots) * np.ones(nshots, dtype=np.int64)
-                return ts, ns
-            return get_strat
-
-        save_x_trace('shot_number', nshots_list, 'nshots_list',
-            omegas, prior, get_get_strat, estimators, estimator_names)
+        pass
     
     elif whichthing == 3:
-        theta_list = np.linspace(0., 4. * np.pi, 100)
-        avg_losses = [[] for i in range(0, len(t_estimators))]
-        avg_loss_vars = [[] for i in range(0, len(t_estimators))]
-        for theta in theta_list:
-            print(theta)
-            avgloss, avgloss_var = avg_t_loss_all_omega(theta, omegas, prior,
-                (ts, ns), t_estimators, 1000)
-            for i in range(0, len(t_estimators)):
-                avg_losses[i].append(avgloss[i])
-                avg_loss_vars[i].append(avgloss_var[i])
-        data = {
-            'omega_min': omega_min,
-            'omega_max': omega_max,
-            'v_0': v_0,
-            'var_omega': var_omega,
-            'theta_list': theta_list,
-            'omegas': omegas,
-            'prior': prior,
-            'ts': ts,
-            'ns': ns,
-            't_estimator_names': t_estimator_names,
-            'avg_losses': avg_losses,
-            'avg_loss_vars': avg_loss_vars,
-            'plottype': 't_theta_loss'
-        }
-        save_data(data, get_filepath(data['plottype']))
+        pass
     
     elif whichthing == 4:
-        N_list = np.arange(1, 100, 1, dtype=np.int64)
+        N_list = np.concatenate([np.arange(1, 10, 1), np.arange(10, 20, 2),
+            np.arange(20, 100, 10), np.arange(100, 200, 20), np.arange(200, 1000, 100)])
         def get_get_strat(N):
             t_min = 0.
             t_max = 4. * np.pi
@@ -375,22 +240,25 @@ def main():
             omegas, prior, get_get_strat, estimators, estimator_names)
     
     elif whichthing == 5:
-        nlist = np.arange(15, 40, 1, dtype=np.int64)
+        nlist = np.concatenate([np.arange(1, 10, 1), np.arange(10, 20, 2),
+            np.arange(20, 100, 10), np.arange(100, 200, 20), np.arange(200, 1000, 100)])
         def get_get_strat(n):
             def get_strat():
-                ts = [7.3]
-                ns = [n]
+                ts = [7.3] * n
+                ns = [1] * n
                 return ts, ns
             return get_strat
 
         save_x_trace('measure_number', nlist, 'nlist',
             omegas, prior, get_get_strat, estimators, estimator_names)
 
-    elif whichthing == 6:
-        dist0 = omegas**2
-        for i in range(0, 10):
-            dist0 = wait_u(omegas, dist0)
-        plt.plot(dist0)
+    elif whichthing == 6: # numerical stability test for heat eq
+        omegas = np.arange(omega_min, omega_max, 0.005)
+        dists = [normalize(np.random.uniform(0., 1., len(omegas)))]
+        for i in range(0, 50):
+            dists.append(wait_u(omegas, dists[-1]))
+        for dist in dists:
+            plt.plot(dist)
         plt.show()
 
 
