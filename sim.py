@@ -13,6 +13,8 @@ v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence ra
 var_omega = 0.00001 # [s^2/u] # the variance in omega per u, where u is the time between measurements
 
 
+
+
 # normalize a discrete probability distribution
 def normalize(dist):
     return dist / np.sum(dist, axis=-1)
@@ -87,6 +89,7 @@ def wait_u(omegas, dist):
     return dist_new
 
 
+# get overall posterior for many measurements
 def get_overall_posterior(omegas, prior, ts, ns, measurements):
     post = np.copy(prior)
     for t, n, m in zip(ts, ns, measurements):
@@ -94,14 +97,39 @@ def get_overall_posterior(omegas, prior, ts, ns, measurements):
     return post
 
 
+class ParticleDist:
+    def __init__(self, values, dist, num_particles):
+        self.size = num_particles
+        self.particles = np.array([sample_dist(values, dist) for i in range(num_particles)])
+        self.weights = np.ones(num_particles) / num_particles
+    def normalize(self):
+        self.weights = normalize(self.weights)
+    def wait_u(self):
+        self.particles = np.clip(
+            self.particles + np.random.normal(0., np.sqrt(var_omega)),
+            omega_min, omega_max )
+    def update(self, t, n, m):
+        self.weights *= get_likelihood(self.particles, t, n, m)
+        self.normalize()
+    def mean(self):
+        return np.sum(self.weights * self.particles)
+    # TODO: resampling
+
+
 ###############################################################################
 ##          Estimators for Omega:                                            ##
-
-# TODO: update estimators to account for omega spread
 
 # estimates omega at the mean of the posterior dist
 def omega_mmse(omegas, prior, ts, ns, measurements):
     return np.sum(omegas * get_overall_posterior(omegas, prior, ts, ns, measurements))
+
+# uses particle method to estimate omega
+def omega_particles_mmse(omegas, prior, ts, ns, measurements):
+    pdist = ParticleDist(omegas, prior, 100)
+    for t, n, m in zip(ts, ns, measurements):
+        pdist.wait_u()
+        pdist.update(t, n, m)
+    return pdist.mean()
 
 ##                                                                           ##
 ###############################################################################
@@ -182,14 +210,14 @@ def main():
     omegas = np.arange(omega_min, omega_max, 0.01)
     prior = normalize(1. + 0.*omegas)
     
-    estimators = [omega_mmse]
-    estimator_names = ['mmse']
+    estimators = [omega_mmse, omega_particles_mmse]
+    estimator_names = ['mmse', 'particles_mmse']
     
-    whichthing = 6
+    whichthing = 1
     
     if whichthing == 0:
-        ts = [7.9] * 30
-        ns = [1] * 30
+        ts = np.random.uniform(0., 4.*np.pi, 300)
+        ns = [1] * 300
         omegas = np.arange(omega_min, omega_max, 0.005)
         prior = normalize(1. + 0.*omegas)
         omega_list_true = sample_omega_list(omegas, prior, len(ts))
@@ -201,7 +229,8 @@ def main():
             plt.plot([estimator(omegas, prior, ts, ns, ms)], prior[0], marker='o', label=nm)
         plt.plot(omegas, prior, label='prior')
         plt.plot(omegas, posterior, label='posterior')
-        plt.plot(omega_list_true, np.linspace(0., prior[0], len(ts)), marker='*', markersize=10, label='true_omega', color=(0., 0., 0.))
+        plt.plot(omega_list_true, np.linspace(0., prior[0], len(ts)),
+            marker='*', markersize=10, label='true_omega', color=(0., 0., 0.))
         plt.legend()
         plt.ylim(bottom=0.)
         plt.show()
@@ -220,7 +249,7 @@ def main():
 
     
     elif whichthing == 2:
-        pass
+        pdist = ParticleDist(omegas, prior, 100)
     
     elif whichthing == 3:
         pass
