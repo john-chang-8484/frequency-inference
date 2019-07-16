@@ -24,14 +24,7 @@ def normalize(dist):
 # values is a list of values
 # dist is a probability distribution on those values
 def sample_dist(values, dist):
-    dist = normalize(dist)
-    sample = random()
-    total = 0.
-    for val, dp in zip(values, dist):
-        total += dp
-        if total >= sample:
-            return val
-    return values[-1]
+    return np.random.choice(values, p=dist)
 
 
 # given omega, prior, and likelihood arrays, computes the posterior distribution
@@ -97,11 +90,15 @@ def get_overall_posterior(omegas, prior, ts, ns, measurements):
     return post
 
 
+# RULE: all fn calls should preserve normalization
 class ParticleDist:
+    prob_mass_limit = 0.5
+    a = 0.98 # pg 10, Christopher E Granade et al 2012 New J. Phys. 14 103013
     def __init__(self, values, dist, num_particles):
         self.size = num_particles
         self.particles = np.array([sample_dist(values, dist) for i in range(num_particles)])
         self.weights = np.ones(num_particles) / num_particles
+        self.probability_mass = 1. # fraction of probability mass remaining since last resampling
     def normalize(self):
         self.weights = normalize(self.weights)
     def wait_u(self):
@@ -110,10 +107,23 @@ class ParticleDist:
             omega_min, omega_max )
     def update(self, t, n, m):
         self.weights *= get_likelihood(self.particles, t, n, m)
+        self.probability_mass *= np.sum(self.weights)
         self.normalize()
+        if self.probability_mass < self.prob_mass_limit:
+            self.resample()
     def mean(self):
         return np.sum(self.weights * self.particles)
-    # TODO: resampling
+    def cov(self):
+        return np.cov(self.particles, aweights=self.weights)
+    def resample(self):
+        mu = self.mean()
+        sampled_particles = np.random.choice(self.particles, size=self.size, p=self.weights)
+        mu_i = (self.a * sampled_particles) + ((1 - self.a) * mu)
+        epsilon = (1 - self.a**2) * self.cov() * np.random.randn(self.size)
+        self.particles = mu_i + epsilon
+        self.weights = np.ones(self.size) / self.size
+        self.probability_mass = 1.
+        self.normalize()
 
 
 ###############################################################################
@@ -213,7 +223,7 @@ def main():
     estimators = [omega_mmse, omega_particles_mmse]
     estimator_names = ['mmse', 'particles_mmse']
     
-    whichthing = 1
+    whichthing = 0
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
@@ -236,7 +246,7 @@ def main():
         plt.show()
         
     elif whichthing == 1:
-        tlist = np.arange(0.1, 28., 0.1)
+        tlist = np.arange(0.1, 20., 0.2)
         def get_get_strat(t):
             def get_strat():
                 ts = [t] * 30
@@ -249,7 +259,7 @@ def main():
 
     
     elif whichthing == 2:
-        pdist = ParticleDist(omegas, prior, 100)
+        pass
     
     elif whichthing == 3:
         pass
