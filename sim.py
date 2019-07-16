@@ -5,13 +5,14 @@ import matplotlib.pyplot as plt
 from util import save_data, get_filepath
 from plot_util import pin_plot
 import inspect
+import math
 
 
 # constants:
-omega_min = 0.8     # [1/s]
-omega_max = 1.2     # [1/s]
+omega_min = 0.1     # [1/s]
+omega_max = 1.9     # [1/s]
 v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence rate)
-var_omega = 0.00001 # [s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.001 # [s^2/u] # the variance in omega per u, where u is the time between measurements
 
 
 # normalize a discrete probability distribution
@@ -71,13 +72,17 @@ def update(omegas, prior, t, n, m):
 # return the prob dist for omega at time t+u
 def wait_u(omegas, dist):
     delta_omega = omegas[1] - omegas[0]
-    dist_new = np.copy(dist)
-    # heat eq evolution
-    dist_new[1:-1] += (var_omega / (2. * delta_omega**2)) * (
-        dist[2:] + dist[:-2] - 2.*dist[1:-1] )
-    # boundary conditions
-    dist_new[0] += (var_omega / (2. * delta_omega**2)) * (dist[1] - dist[0])
-    dist_new[-1] += (var_omega / (2. * delta_omega**2)) * (dist[-2] - dist[-1])
+    n = math.ceil(0.1 + (var_omega / delta_omega**2))
+    print(n)
+    for i in range(n):
+        dist_new = np.copy(dist)
+        # heat eq evolution
+        dist_new[1:-1] += (var_omega / (2. * n * delta_omega**2)) * (
+            dist[2:] + dist[:-2] - 2.*dist[1:-1] )
+        # boundary conditions
+        dist_new[0] += (var_omega / (2. * n * delta_omega**2)) * (dist[1] - dist[0])
+        dist_new[-1] += (var_omega / (2. * n * delta_omega**2)) * (dist[-2] - dist[-1])
+        dist = dist_new
     return dist_new
 
 
@@ -92,7 +97,7 @@ def get_overall_posterior(omegas, prior, ts, ns, measurements):
 # RULE: all fn calls should preserve normalization
 class ParticleDist:
     size = 100
-    prob_mass_limit = 0.5
+    prob_mass_limit = 0.1
     a = 0.9 # pg 10, Christopher E Granade et al 2012 New J. Phys. 14 103013
     b = 2.9  # additional fudge factor for resampling
     def __init__(self, values, dist):
@@ -230,11 +235,11 @@ def main():
     estimators = [omega_mmse, omega_particles_mmse]
     estimator_names = ['mmse', 'particles_mmse']
     
-    whichthing = 1
+    whichthing = 0
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
-        ns = [1] * 300
+        ns = [1] * 30
         omegas = np.arange(omega_min, omega_max, 0.005)
         prior = normalize(1. + 0.*omegas)
         omega_list_true = sample_omega_list(omegas, prior, len(ts))
@@ -243,13 +248,13 @@ def main():
         print(ms)
         posterior = get_overall_posterior(omegas, prior, ts, ns, ms)
         particle_post = get_particle_posterior(omegas, prior, ts, ns, ms)
+        pin_plot(particle_post.particles, particle_post.weights)
+        plt.plot(omegas, prior, label='prior')
+        plt.plot(omegas, posterior, label='posterior')
         for estimator, nm in zip(estimators, estimator_names):
             if nm != 'particles_mmse':
                 plt.plot([estimator(omegas, prior, ts, ns, ms)], prior[0], marker='o', label=nm)
         plt.plot(particle_post.mean(), prior[0], marker='o', label='particles_mmse')
-        pin_plot(particle_post.particles, particle_post.weights)
-        plt.plot(omegas, prior, label='prior')
-        plt.plot(omegas, posterior, label='posterior')
         plt.plot(omega_list_true, np.linspace(0., prior[0], len(ts)),
             marker='*', markersize=10, label='true_omega', color=(0., 0., 0.))
         plt.legend()
@@ -276,8 +281,10 @@ def main():
         pass
     
     elif whichthing == 4:
-        N_list = np.concatenate([np.arange(1, 10, 1), np.arange(10, 20, 2),
-            np.arange(20, 100, 10), np.arange(100, 200, 20), np.arange(200, 1000, 100)])
+        N_list = np.concatenate([np.arange(1, 10, 1), np.arange(10, 30, 4),
+            np.arange(30, 100, 10), np.arange(100, 300, 40),
+            np.arange(300, 1000, 100), np.arange(1000, 3000, 400),
+            np.arange(3000, 10000, 1000)])
         def get_get_strat(N):
             t_min = 0.
             t_max = 4. * np.pi
@@ -287,7 +294,7 @@ def main():
                 return ts, ns
             return get_strat
         save_x_trace('measurement_performance', N_list, 'N_list',
-            omegas, prior, get_get_strat, estimators, estimator_names)
+            omegas, prior, get_get_strat, estimators, estimator_names, runs=100)
     
     elif whichthing == 5:
         nlist = np.concatenate([np.arange(1, 10, 1), np.arange(10, 20, 2),
