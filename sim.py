@@ -1,8 +1,8 @@
 import numpy as np
 from random import randint, random
-from scipy.special import gammaln
+#from scipy.special import gammaln
 import matplotlib.pyplot as plt
-from util import save_data, get_filepath
+from util import save_data, get_filepath, gammaln
 from plot_util import pin_plot
 import inspect
 import math
@@ -52,7 +52,7 @@ def many_measure(omega_list, ts, ns):
 def log_likelihood(omega, t, n, m):
     pe = prob_excited(t, omega)
     ans = (
-        gammaln(1 + n) - gammaln(1 + m) - gammaln(1 + n - m) +  # binomial coefficient
+        gammaln[1 + n] - gammaln[1 + m] - gammaln[1 + n - m] +  # binomial coefficient
         m * np.log(pe) +             # p^m
         (n - m) * np.log(1. - pe)    # (1-p)^(n-m)
     )
@@ -234,7 +234,7 @@ def main():
     estimators = [omega_mmse, omega_particles_mmse]
     estimator_names = ['mmse', 'particles_mmse']
     
-    whichthing = 4
+    whichthing = 1
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 30)
@@ -261,7 +261,7 @@ def main():
         plt.show()
         
     elif whichthing == 1:
-        tlist = np.arange(0.1, 16., 0.3)
+        tlist = np.arange(0.1, 16., 4.3)
         def get_get_strat(t):
             def get_strat():
                 ts = [t] * 30
