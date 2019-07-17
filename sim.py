@@ -31,7 +31,7 @@ def clip_omega(omegas):
 def sample_dist(values, dist):
     delta = values[1] - values[0]
     epsilon = np.random.uniform(-delta / 2, delta / 2)
-    x = np.random.choice(values, p=dist) + epsilon
+    x = np.random.choice(values, p=dist)
     return np.clip(x + epsilon, values[0], values[-1]) # <- this is a little bit hacky
 
 
@@ -108,7 +108,7 @@ class ParticleDist:
     a = 0.9 # pg 10, Christopher E Granade et al 2012 New J. Phys. 14 103013
     b = 2.9  # additional fudge factor for resampling
     def __init__(self, values, dist):
-        self.particles = np.array([sample_dist(values, dist) for i in range(self.size)])
+        self.particles = np.random.choice(values, size=self.size, p=dist)
         self.weights = np.ones(self.size) / self.size
         self.probability_mass = 1. # fraction of probability mass remaining since last resampling
     def normalize(self):
@@ -238,7 +238,7 @@ def main():
     estimators = [omega_mmse, omega_particles_mmse]
     estimator_names = ['mmse', 'particles_mmse']
     
-    whichthing = 0
+    whichthing = 1
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 30)

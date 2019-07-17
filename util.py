@@ -33,4 +33,9 @@ class Bunch(object):
     self.__dict__.update(adict)
 
 
+'''
+# deterministically sample n numbers (from 0 to p.size-1) with a probability distribution p
+def deterministic_sample(n, p):
+    return np.clip(np.floor(np.cumsum(p) * n), 0, p.size-1).astype(int)
+'''
 
