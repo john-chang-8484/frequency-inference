@@ -73,7 +73,6 @@ def update(omegas, prior, t, n, m):
 def wait_u(omegas, dist):
     delta_omega = omegas[1] - omegas[0]
     n = math.ceil(0.1 + (var_omega / delta_omega**2))
-    print(n)
     for i in range(n):
         dist_new = np.copy(dist)
         # heat eq evolution
@@ -238,7 +237,7 @@ def main():
     whichthing = 0
     
     if whichthing == 0:
-        ts = np.random.uniform(0., 4.*np.pi, 300)
+        ts = np.random.uniform(0., 4.*np.pi, 30)
         ns = [1] * 30
         omegas = np.arange(omega_min, omega_max, 0.005)
         prior = normalize(1. + 0.*omegas)
