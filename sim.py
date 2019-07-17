@@ -12,7 +12,7 @@ import math
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence rate)
-var_omega = 0.01    # [s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.00001 # [s^2/u] # the variance in omega per u, where u is the time between measurements
 
 
 # normalize a discrete probability distribution
@@ -234,7 +234,7 @@ def main():
     estimators = [omega_mmse, omega_particles_mmse]
     estimator_names = ['mmse', 'particles_mmse']
     
-    whichthing = 1
+    whichthing = 4
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 30)
@@ -261,7 +261,7 @@ def main():
         plt.show()
         
     elif whichthing == 1:
-        tlist = np.arange(0.1, 20., 0.2)
+        tlist = np.arange(0.1, 16., 0.3)
         def get_get_strat(t):
             def get_strat():
                 ts = [t] * 30

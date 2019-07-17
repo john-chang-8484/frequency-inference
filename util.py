@@ -15,7 +15,7 @@ def save_data(data, filename):
 
 def get_filepath(graphnm):
     return '%s/%s_%s.p' % (SAVE_DIR, graphnm,
-        datetime.datetime.now().strftime('%S_%M_%H_%d_%m%Y'))
+        datetime.datetime.now().strftime('%S_%M_%H_%d_%m_%Y'))
 
 class Bunch(object):
   def __init__(self, adict):
