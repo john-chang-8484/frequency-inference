@@ -12,7 +12,7 @@ import math
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence rate)
-var_omega = 0.001 # [s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.01    # [s^2/u] # the variance in omega per u, where u is the time between measurements
 
 
 # normalize a discrete probability distribution
@@ -124,7 +124,7 @@ class ParticleDist:
         sampled_particles = np.random.choice(self.particles, size=self.size, p=self.weights)
         mu_i = (self.a * sampled_particles) + ((1 - self.a) * mu)
         epsilon = np.sqrt(self.b * self.cov() * (1. - self.a**2)) * np.random.randn(self.size) 
-        self.particles = mu_i + epsilon
+        self.particles = np.clip(mu_i + epsilon, omega_min, omega_max)
         self.weights = np.ones(self.size) / self.size
         self.probability_mass = 1.
         self.normalize()
@@ -228,18 +228,18 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
 
 
 def main():
-    omegas = np.arange(omega_min, omega_max, 0.01)
+    omegas = np.linspace(omega_min, omega_max, 100)
     prior = normalize(1. + 0.*omegas)
     
     estimators = [omega_mmse, omega_particles_mmse]
     estimator_names = ['mmse', 'particles_mmse']
     
-    whichthing = 0
+    whichthing = 1
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 30)
         ns = [1] * 30
-        omegas = np.arange(omega_min, omega_max, 0.005)
+        #omegas = np.arange(omega_min, omega_max, 0.005)
         prior = normalize(1. + 0.*omegas)
         omega_list_true = sample_omega_list(omegas, prior, len(ts))
         print('true omega:', omega_list_true)
