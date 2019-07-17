@@ -20,11 +20,19 @@ def normalize(dist):
     return dist / np.sum(dist, axis=-1)
 
 
+# clip a set of omega values to the range
+def clip_omega(omegas):
+    return np.clip(omegas, omega_min, omega_max)
+
+
 # randomly sample from a distribution
-# values is a list of values
-# dist is a probability distribution on those values
+# values should be evenly spaced and in sorted order
+# dist is a probability distribution on values
 def sample_dist(values, dist):
-    return np.random.choice(values, p=dist)
+    delta = values[1] - values[0]
+    epsilon = np.random.uniform(-delta / 2, delta / 2)
+    x = np.random.choice(values, p=dist) + epsilon
+    return np.clip(x + epsilon, values[0], values[-1]) # <- this is a little bit hacky
 
 
 # given omega, prior, and likelihood arrays, computes the posterior distribution
@@ -106,9 +114,7 @@ class ParticleDist:
     def normalize(self):
         self.weights = normalize(self.weights)
     def wait_u(self):
-        self.particles = np.clip(
-            self.particles + np.random.normal(0., np.sqrt(var_omega)),
-            omega_min, omega_max )
+        self.particles = clip_omega(self.particles + np.random.normal(0., np.sqrt(var_omega)))
     def update(self, t, n, m):
         self.weights *= get_likelihood(self.particles, t, n, m)
         self.probability_mass *= np.sum(self.weights)
@@ -124,7 +130,7 @@ class ParticleDist:
         sampled_particles = np.random.choice(self.particles, size=self.size, p=self.weights)
         mu_i = (self.a * sampled_particles) + ((1 - self.a) * mu)
         epsilon = np.sqrt(self.b * self.cov() * (1. - self.a**2)) * np.random.randn(self.size) 
-        self.particles = np.clip(mu_i + epsilon, omega_min, omega_max)
+        self.particles = clip_omega(mu_i + epsilon)
         self.weights = np.ones(self.size) / self.size
         self.probability_mass = 1.
         self.normalize()
@@ -156,9 +162,7 @@ def sample_omega_list(omegas, prior, length):
     omega0 = sample_dist(omegas, prior)
     omega_list = [omega0]
     for i in range(1, length):
-        omega_list.append(np.clip(
-            omega_list[-1] + np.random.normal(0., np.sqrt(var_omega)),
-            omega_min, omega_max ))
+        omega_list.append(clip_omega(omega_list[-1] + np.random.normal(0., np.sqrt(var_omega))))
     return omega_list
 
 
@@ -234,7 +238,7 @@ def main():
     estimators = [omega_mmse, omega_particles_mmse]
     estimator_names = ['mmse', 'particles_mmse']
     
-    whichthing = 1
+    whichthing = 0
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 30)
