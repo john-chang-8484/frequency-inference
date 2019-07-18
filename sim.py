@@ -16,6 +16,11 @@ var_omega = 0.0001  # [s^2/u] # the variance in omega per u, where u is the time
 
 
 
+# probability of excitation at time t for a given value of omega
+def prob_excited(t, omega):
+    return 0.5 * (1. - (np.exp(- 0.5 * v_0 * t) * np.cos(omega * t)))
+
+
 # normalize a discrete probability distribution
 def normalize(dist):
     return dist / np.sum(dist, axis=-1)
@@ -34,17 +39,6 @@ def sample_dist(values, dist):
     epsilon = np.random.uniform(-delta / 2, delta / 2)
     x = np.random.choice(values, p=dist)
     return np.clip(x + epsilon, values[0], values[-1]) # <- this is a little bit hacky
-
-
-# given omega, prior, and likelihood arrays, computes the posterior distribution
-# (this posterior is on the *discrete* values of omega given)
-def get_posterior(prior, likelihood):
-    return normalize(prior * likelihood)
-
-
-# probability of excitation at time t for a given value of omega
-def prob_excited(t, omega):
-    return 0.5 * (1. - (np.exp(- 0.5 * v_0 * t) * np.cos(omega * t)))
 
 
 # returns the number of excited states measured
@@ -72,81 +66,80 @@ def get_likelihood(omega, t, n, m):
     return np.exp(log_likelihood(omega, t, n, m))
 
 
-# update prior given a measurement at time t, with n hits, result m
-def update(omegas, prior, t, n, m):
-    return get_posterior(prior, get_likelihood(omegas, t, n, m))
-
-
-# given a posterior distribution for omega at time t,
-# return the prob dist for omega at time t+u
-def wait_u(omegas, dist):
-    diff = omegas[-1] - omegas[0]
-    fact = (var_omega * np.pi**2) / (2. * diff**2)
-    cos_coeffs = dct(dist) # switch to fourier space, in terms of cosines to get Neumann BC
-    n = np.arange(cos_coeffs.size)
-    cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
-    return idct(cos_coeffs) / (2 * cos_coeffs.size) # switch back
-
-
-# get overall posterior for many measurements
-def get_overall_posterior(omegas, prior, ts, ns, measurements):
-    post = np.copy(prior)
-    for t, n, m in zip(ts, ns, measurements):
-        post = update(omegas, wait_u(omegas, post), t, n, m)
-    return post
-
-
 # RULE: all fn calls should preserve normalization
 class ParticleDist:
     size = 250
-    prob_mass_limit = 0.15
-    a = 0.99 # pg 10, Christopher E Granade et al 2012 New J. Phys. 14 103013
-    b = 0.02  # additional fudge factor for resampling
-    def __init__(self, values, dist):
-        self.particles = np.random.choice(values, size=self.size, p=dist)
-        self.weights = np.ones(self.size) / self.size
-        self.probability_mass = 1. # fraction of probability mass remaining since last resampling
     def normalize(self):
-        self.weights = normalize(self.weights)
+        self.dist = normalize(self.dist)
+    def mean(self):
+        return np.sum(self.dist * self.omegas)
+    def many_update(self, ts, ns, ms):
+        for t, n, m in zip(ts, ns, ms):
+            self.wait_u()
+            self.update(t, n, m)
+
+
+class GridDist(ParticleDist):
+    def __init__(self, omegas, prior):
+        self.omegas = np.copy(omegas)
+        self.dist = np.copy(prior)
     def wait_u(self):
-        self.particles = clip_omega(self.particles + np.random.normal(0., np.sqrt(var_omega)))
+        ''' given a posterior distribution for omega at time t,
+            we find the dist for omega at time t+u '''
+        diff = self.omegas[-1] - self.omegas[0]
+        fact = (var_omega * np.pi**2) / (2. * diff**2)
+        cos_coeffs = dct(self.dist) # switch to fourier space, in terms of cosines to get Neumann BC
+        n = np.arange(cos_coeffs.size)
+        cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
+        self.dist = idct(cos_coeffs) / (2 * cos_coeffs.size) # switch back to the usual representation
     def update(self, t, n, m):
-        self.weights *= get_likelihood(self.particles, t, n, m)
-        self.probability_mass *= np.sum(self.weights)
+        self.dist *= get_likelihood(self.omegas, t, n, m)
+        self.normalize()
+
+
+class DynamicDist(ParticleDist):
+    prob_mass_limit = 0.15
+    a = 0.99  # pg 10, Christopher E Granade et al 2012 New J. Phys. 14 103013
+    b = 0.02  # additional fudge factor for resampling
+    def __init__(self, omegas, prior):
+        self.omegas = np.random.choice(omegas, size=self.size, p=prior)
+        self.dist = np.ones(self.size) / self.size
+        self.probability_mass = 1. # fraction of probability mass remaining since last resampling
+    def wait_u(self):
+        self.omegas = clip_omega(self.omegas + np.random.normal(0., np.sqrt(var_omega)))
+    def update(self, t, n, m):
+        self.dist *= get_likelihood(self.omegas, t, n, m)
+        self.probability_mass *= np.sum(self.dist)
         self.normalize()
         if self.probability_mass < self.prob_mass_limit:
             self.resample()
-    def mean(self):
-        return np.sum(self.weights * self.particles)
     def cov(self):
-        return np.cov(self.particles, ddof=0, aweights=self.weights)
+        return np.cov(self.omegas, ddof=0, aweights=self.dist)
     def resample(self):
         mu = self.mean()
-        sampled_particles = np.random.choice(self.particles, size=self.size, p=self.weights)
+        sampled_particles = np.random.choice(self.omegas, size=self.size, p=self.dist)
         mu_i = (self.a * sampled_particles) + ((1 - self.a) * mu)
         epsilon = np.sqrt(self.b + self.cov() * (1. - self.a**2)) * np.random.randn(self.size) 
-        self.particles = clip_omega(mu_i + epsilon)
-        self.weights = np.ones(self.size) / self.size
+        self.omegas = clip_omega(mu_i + epsilon)
+        self.dist = np.ones(self.size) / self.size
         self.probability_mass = 1.
         self.normalize()
 
-def get_particle_posterior(omegas, prior, ts, ns, measurements):
-    pdist = ParticleDist(omegas, prior)
-    for t, n, m in zip(ts, ns, measurements):
-        pdist.wait_u()
-        pdist.update(t, n, m)
-    return pdist
 
 ###############################################################################
 ##          Estimators for Omega:                                            ##
 
 # estimates omega at the mean of the posterior dist
-def omega_mmse(omegas, prior, ts, ns, measurements):
-    return np.sum(omegas * get_overall_posterior(omegas, prior, ts, ns, measurements))
+def grid_mean(omegas, prior, ts, ns, measurements):
+    dist = GridDist(omegas, prior)
+    dist.many_update(ts, ns, measurements)
+    return dist.mean()
 
 # uses particle method to estimate omega
-def omega_particles_mmse(omegas, prior, ts, ns, measurements):
-    return get_particle_posterior(omegas, prior, ts, ns, measurements).mean()
+def dynm_mean(omegas, prior, ts, ns, measurements):
+    dist = DynamicDist(omegas, prior)
+    dist.many_update(ts, ns, measurements)
+    return dist.mean()
 
 ##                                                                           ##
 ###############################################################################
@@ -230,10 +223,10 @@ def main():
     omegas = np.linspace(omega_min, omega_max, 250)
     prior = normalize(1. + 0.*omegas)
     
-    estimators = [omega_mmse, omega_particles_mmse]
-    estimator_names = ['mmse', 'particles_mmse']
+    estimators = [grid_mean, dynm_mean]
+    estimator_names = ['grid_mean', 'dynm_mean']
     
-    whichthing = 6
+    whichthing = 1
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
@@ -242,15 +235,16 @@ def main():
         print('true omega:', omega_list_true)
         ms = many_measure(omega_list_true, ts, ns)
         print(ms)
-        posterior = get_overall_posterior(omegas, prior, ts, ns, ms)
-        particle_post = get_particle_posterior(omegas, prior, ts, ns, ms)
-        pin_plot(particle_post.particles, particle_post.weights)
+        grid = GridDist(omegas, prior)
+        dynm = DynamicDist(omegas, prior)
+        grid.many_update(ts, ns, ms)
+        dynm.many_update(ts, ns, ms)
+        
+        pin_plot(dynm.omegas, dynm.dist)
         plt.plot(omegas, prior, label='prior')
-        plt.plot(omegas, posterior, label='posterior')
-        for estimator, nm in zip(estimators, estimator_names):
-            if nm != 'particles_mmse':
-                plt.plot([estimator(omegas, prior, ts, ns, ms)], prior[0], marker='o', label=nm)
-        plt.plot(particle_post.mean(), prior[0], marker='o', label='particles_mmse')
+        plt.plot(omegas, grid.dist, label='posterior')
+        for dist, nm in [(grid, 'grid_mean'), (dynm, 'dynm_mean')]:
+            plt.plot([dist.mean()], prior[0], marker='o', label=nm)
         plt.plot(omega_list_true, np.linspace(0., prior[0], len(ts)),
             marker='*', markersize=10, label='true_omega', color=(0., 0., 0.))
         plt.legend()
@@ -301,15 +295,6 @@ def main():
 
         save_x_trace('measure_number', nlist, 'nlist',
             omegas, prior, get_get_strat, estimators, estimator_names)
-
-    elif whichthing == 6: # numerical stability test for heat eq
-        omegas = np.arange(omega_min, omega_max, 0.005)
-        dists = [normalize(np.random.uniform(0., 1., len(omegas)))]
-        for i in range(0, 50):
-            dists.append(wait_u(omegas, dists[-1]))
-        for dist in dists:
-            plt.plot(dist)
-        plt.show()
 
 
 if __name__ == '__main__':

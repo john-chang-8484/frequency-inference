@@ -14,26 +14,28 @@ def main():
     omega_list_true = 1. + 0.5*np.sin(np.linspace(-10., 15., len(ts)))#sample_omega_list(omegas, prior, len(ts))
     ms = many_measure(omega_list_true, ts, ns)
     
-    pdist = ParticleDist(omegas, prior)
-    post = np.copy(prior)
+    dynm = DynamicDist(omegas, prior)
+    grid = GridDist(omegas, prior)
     
-    particle_lists = [np.copy(pdist.particles)]
-    weight_lists = [np.copy(pdist.weights)]
-    posts = [np.copy(post)]
+    particle_lists = [np.copy(dynm.omegas)]
+    weight_lists = [np.copy(dynm.dist)]
+    posts = [np.copy(grid.dist)]
     
-    means = []
-    particle_means = []
+    grid_means = []
+    dynm_means = []
     
     for t, n, m in zip(ts, ns, ms):
-        post = update(omegas, wait_u(omegas, post), t, n, m)
-        pdist.wait_u()
-        pdist.update(t, n, m)
+        grid.wait_u()
+        grid.update(t, n, m)
+        dynm.wait_u()
+        dynm.update(t, n, m)
         
-        particle_lists.append(np.copy(pdist.particles))
-        weight_lists.append(np.copy(pdist.weights))
-        posts.append(np.copy(post))
-        means.append(np.sum(omegas * post))
-        particle_means.append(pdist.mean())
+        particle_lists.append(np.copy(dynm.omegas))
+        weight_lists.append(np.copy(dynm.dist))
+        posts.append(np.copy(grid.dist))
+        
+        grid_means.append(grid.mean())
+        dynm_means.append(dynm.mean())
     
     us = np.arange(0, len(posts))
     
@@ -53,8 +55,8 @@ def main():
     #ax.plot_wireframe(x_grid, y_grid, posts, alpha=0.4, color='tab:blue')
     
     ax.plot(us[1:], omega_list_true, color='g')
-    ax.plot(us[1:], particle_means, color='tab:orange')
-    ax.plot(us[1:], means, color='tab:blue')
+    ax.plot(us[1:], dynm_means, color='tab:orange')
+    ax.plot(us[1:], grid_means, color='tab:blue')
 
     plt.show()
 
