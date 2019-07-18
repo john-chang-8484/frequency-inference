@@ -86,7 +86,21 @@ def wait_u(omegas, dist):
     n = np.arange(cos_coeffs.size)
     cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
     return idct(cos_coeffs) / (2 * cos_coeffs.size) # switch back
-
+# given a posterior distribution for omega at time t,
+# return the prob dist for omega at time t+u
+def wait_u1(omegas, dist):
+    delta_omega = omegas[1] - omegas[0]
+    n = math.ceil(0.1 + (var_omega / delta_omega**2))
+    for i in range(n):
+        dist_new = np.copy(dist)
+        # heat eq evolution
+        dist_new[1:-1] += (var_omega / (2. * n * delta_omega**2)) * (
+            dist[2:] + dist[:-2] - 2.*dist[1:-1] )
+        # boundary conditions
+        dist_new[0] += (var_omega / (2. * n * delta_omega**2)) * (dist[1] - dist[0])
+        dist_new[-1] += (var_omega / (2. * n * delta_omega**2)) * (dist[-2] - dist[-1])
+        dist = dist_new
+    return dist_new
 
 # get overall posterior for many measurements
 def get_overall_posterior(omegas, prior, ts, ns, measurements):
@@ -233,7 +247,7 @@ def main():
     estimators = [omega_mmse, omega_particles_mmse]
     estimator_names = ['mmse', 'particles_mmse']
     
-    whichthing = 1
+    whichthing = 6
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
@@ -305,10 +319,12 @@ def main():
     elif whichthing == 6: # numerical stability test for heat eq
         omegas = np.arange(omega_min, omega_max, 0.005)
         dists = [normalize(np.random.uniform(0., 1., len(omegas)))]
+        dists1 = [np.copy(dists[0])]
         for i in range(0, 50):
             dists.append(wait_u(omegas, dists[-1]))
-        for dist in dists:
-            plt.plot(dist)
+            dists1.append(wait_u1(omegas, dists[-1]))
+        for dist, dist1 in zip(dists, dists1):
+            plt.plot(dist - dist1)
         plt.show()
 
 
