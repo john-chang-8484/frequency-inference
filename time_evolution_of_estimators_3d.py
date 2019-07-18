@@ -8,10 +8,10 @@ def main():
     omegas = np.linspace(omega_min, omega_max, 100)
     prior = normalize(1. + 0.*omegas)
     
-    ts = np.random.uniform(0., 4.*np.pi, 30)
-    ns = [1] * 30
+    ts = np.random.uniform(0., 4.*np.pi, 300)
+    ns = [1] * 300
     
-    omega_list_true = sample_omega_list(omegas, prior, len(ts))
+    omega_list_true = 1. + 0.5*np.sign(np.linspace(-10., 15., len(ts)))#sample_omega_list(omegas, prior, len(ts))
     ms = many_measure(omega_list_true, ts, ns)
     
     pdist = ParticleDist(omegas, prior)
@@ -49,8 +49,8 @@ def main():
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
-    pin_plot_3d(ax, particle_us.flatten(), particle_lists.flatten(), weight_lists.flatten(), alpha=0.55, color='tab:orange')
-    ax.plot_wireframe(x_grid, y_grid, posts, alpha=0.4, color='tab:blue')
+    #pin_plot_3d(ax, particle_us.flatten(), particle_lists.flatten(), weight_lists.flatten(), alpha=0.55, color='tab:orange')
+    #ax.plot_wireframe(x_grid, y_grid, posts, alpha=0.4, color='tab:blue')
     
     ax.plot(us[1:], omega_list_true, color='g')
     ax.plot(us[1:], particle_means, color='tab:orange')

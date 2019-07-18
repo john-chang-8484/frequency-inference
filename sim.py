@@ -1,6 +1,6 @@
 import numpy as np
 from random import randint, random
-#from scipy.special import gammaln
+from scipy.fftpack import dct, idct
 import matplotlib.pyplot as plt
 from util import save_data, get_filepath, gammaln
 from plot_util import pin_plot
@@ -12,7 +12,8 @@ import math
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence rate)
-var_omega = 0.00001 # [s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.005   # [s^2/u] # the variance in omega per u, where u is the time between measurements
+
 
 
 # normalize a discrete probability distribution
@@ -79,18 +80,12 @@ def update(omegas, prior, t, n, m):
 # given a posterior distribution for omega at time t,
 # return the prob dist for omega at time t+u
 def wait_u(omegas, dist):
-    delta_omega = omegas[1] - omegas[0]
-    n = math.ceil(0.1 + (var_omega / delta_omega**2))
-    for i in range(n):
-        dist_new = np.copy(dist)
-        # heat eq evolution
-        dist_new[1:-1] += (var_omega / (2. * n * delta_omega**2)) * (
-            dist[2:] + dist[:-2] - 2.*dist[1:-1] )
-        # boundary conditions
-        dist_new[0] += (var_omega / (2. * n * delta_omega**2)) * (dist[1] - dist[0])
-        dist_new[-1] += (var_omega / (2. * n * delta_omega**2)) * (dist[-2] - dist[-1])
-        dist = dist_new
-    return dist_new
+    diff = omegas[-1] - omegas[0]
+    fact = (var_omega * np.pi**2) / (2. * diff**2)
+    cos_coeffs = dct(dist) # switch to fourier space, in terms of cosines to get Neumann BC
+    n = np.arange(cos_coeffs.size)
+    cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
+    return idct(cos_coeffs) / (2 * cos_coeffs.size) # switch back
 
 
 # get overall posterior for many measurements
@@ -103,10 +98,10 @@ def get_overall_posterior(omegas, prior, ts, ns, measurements):
 
 # RULE: all fn calls should preserve normalization
 class ParticleDist:
-    size = 100
-    prob_mass_limit = 0.1
-    a = 0.9 # pg 10, Christopher E Granade et al 2012 New J. Phys. 14 103013
-    b = 2.9  # additional fudge factor for resampling
+    size = 250
+    prob_mass_limit = 0.15
+    a = 0.99 # pg 10, Christopher E Granade et al 2012 New J. Phys. 14 103013
+    b = 0.02  # additional fudge factor for resampling
     def __init__(self, values, dist):
         self.particles = np.random.choice(values, size=self.size, p=dist)
         self.weights = np.ones(self.size) / self.size
@@ -129,7 +124,7 @@ class ParticleDist:
         mu = self.mean()
         sampled_particles = np.random.choice(self.particles, size=self.size, p=self.weights)
         mu_i = (self.a * sampled_particles) + ((1 - self.a) * mu)
-        epsilon = np.sqrt(self.b * self.cov() * (1. - self.a**2)) * np.random.randn(self.size) 
+        epsilon = np.sqrt(self.b + self.cov() * (1. - self.a**2)) * np.random.randn(self.size) 
         self.particles = clip_omega(mu_i + epsilon)
         self.weights = np.ones(self.size) / self.size
         self.probability_mass = 1.
@@ -232,7 +227,7 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
 
 
 def main():
-    omegas = np.linspace(omega_min, omega_max, 100)
+    omegas = np.linspace(omega_min, omega_max, 250)
     prior = normalize(1. + 0.*omegas)
     
     estimators = [omega_mmse, omega_particles_mmse]
@@ -241,10 +236,8 @@ def main():
     whichthing = 1
     
     if whichthing == 0:
-        ts = np.random.uniform(0., 4.*np.pi, 30)
-        ns = [1] * 30
-        #omegas = np.arange(omega_min, omega_max, 0.005)
-        prior = normalize(1. + 0.*omegas)
+        ts = np.random.uniform(0., 4.*np.pi, 300)
+        ns = [1] * 300
         omega_list_true = sample_omega_list(omegas, prior, len(ts))
         print('true omega:', omega_list_true)
         ms = many_measure(omega_list_true, ts, ns)
@@ -265,7 +258,7 @@ def main():
         plt.show()
         
     elif whichthing == 1:
-        tlist = np.arange(0.1, 16., 4.3)
+        tlist = np.arange(0.1, 16., 5.)
         def get_get_strat(t):
             def get_strat():
                 ts = [t] * 30
@@ -284,10 +277,7 @@ def main():
         pass
     
     elif whichthing == 4:
-        N_list = np.concatenate([np.arange(1, 10, 1), np.arange(10, 30, 4),
-            np.arange(30, 100, 10), np.arange(100, 300, 40),
-            np.arange(300, 1000, 100), np.arange(1000, 3000, 400),
-            np.arange(3000, 10000, 1000)])
+        N_list = np.array([1, 3, 10, 30, 100, 300, 1000, 3000, 10000])
         def get_get_strat(N):
             t_min = 0.
             t_max = 4. * np.pi
@@ -297,7 +287,7 @@ def main():
                 return ts, ns
             return get_strat
         save_x_trace('measurement_performance', N_list, 'N_list',
-            omegas, prior, get_get_strat, estimators, estimator_names, runs=100)
+            omegas, prior, get_get_strat, estimators, estimator_names, runs=500)
     
     elif whichthing == 5:
         nlist = np.concatenate([np.arange(1, 10, 1), np.arange(10, 20, 2),
