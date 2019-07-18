@@ -8,10 +8,10 @@ def main():
     omegas = np.linspace(omega_min, omega_max, 100)
     prior = normalize(1. + 0.*omegas)
     
-    ts = np.random.uniform(0., 4.*np.pi, 300)
-    ns = [1] * 300
+    ts = np.random.uniform(0., 4.*np.pi, 3000)
+    ns = [1] * 3000
     
-    omega_list_true = 1. + 0.5*np.sign(np.linspace(-10., 15., len(ts)))#sample_omega_list(omegas, prior, len(ts))
+    omega_list_true = 1. + 0.5*np.sin(np.linspace(-10., 15., len(ts)))#sample_omega_list(omegas, prior, len(ts))
     ms = many_measure(omega_list_true, ts, ns)
     
     pdist = ParticleDist(omegas, prior)
