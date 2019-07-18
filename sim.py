@@ -2,7 +2,7 @@ import numpy as np
 from random import randint, random
 from scipy.fftpack import dct, idct
 import matplotlib.pyplot as plt
-from util import save_data, get_filepath, gammaln
+from util import save_data, get_filepath, gammaln, get_numeric_class_vars
 from plot_util import pin_plot
 import inspect
 import math
@@ -29,6 +29,10 @@ def normalize(dist):
 # clip a set of omega values to the range
 def clip_omega(omegas):
     return np.clip(omegas, omega_min, omega_max)
+
+
+def perturb_omega(omega):
+    return clip_omega(omega + np.random.normal(0., np.sqrt(var_omega)))
 
 
 # randomly sample from a distribution
@@ -81,6 +85,7 @@ class ParticleDist:
 
 class GridDist(ParticleDist):
     def __init__(self, omegas, prior):
+        assert len(omegas) == len(prior) == self.size
         self.omegas = np.copy(omegas)
         self.dist = np.copy(prior)
     def wait_u(self):
@@ -106,7 +111,7 @@ class DynamicDist(ParticleDist):
         self.dist = np.ones(self.size) / self.size
         self.probability_mass = 1. # fraction of probability mass remaining since last resampling
     def wait_u(self):
-        self.omegas = clip_omega(self.omegas + np.random.normal(0., np.sqrt(var_omega)))
+        self.omegas = perturb_omega(self.omegas)
     def update(self, t, n, m):
         self.dist *= get_likelihood(self.omegas, t, n, m)
         self.probability_mass *= np.sum(self.dist)
@@ -150,7 +155,7 @@ def sample_omega_list(omegas, prior, length):
     omega0 = sample_dist(omegas, prior)
     omega_list = [omega0]
     for i in range(1, length):
-        omega_list.append(clip_omega(omega_list[-1] + np.random.normal(0., np.sqrt(var_omega))))
+        omega_list.append(perturb_omega(omega_list[-1]))
     return omega_list
 
 
@@ -209,11 +214,9 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
         'avg_losses': avg_losses,
         'avg_loss_vars': avg_loss_vars,
         'plottype': plottype,
-        'particle_params': {
-            key: vars(ParticleDist)[key]
-                for key in vars(ParticleDist)
-                if type(vars(ParticleDist)[key]) in [int, float]
-        }
+        'particle_params': get_numeric_class_vars(ParticleDist),
+        'grid_params': get_numeric_class_vars(GridDist),
+        'dynamic_params': get_numeric_class_vars(DynamicDist),
     }
     save_data(data, get_filepath(data['plottype']))
 

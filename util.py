@@ -33,6 +33,14 @@ class Bunch(object):
     self.__dict__.update(adict)
 
 
+def get_numeric_class_vars(a_class):
+    return {
+        key: vars(a_class)[key]
+            for key in vars(a_class)
+            if type(vars(a_class)[key]) in [int, float]
+    }
+
+
 '''
 # deterministically sample n numbers (from 0 to p.size-1) with a probability distribution p
 def deterministic_sample(n, p):
