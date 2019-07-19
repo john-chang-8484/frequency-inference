@@ -7,6 +7,7 @@ from plot_util import pin_plot
 import inspect
 import math
 from qinfer import simple_est_prec
+from qinfer import resamplers
 
 
 # constants:
@@ -15,7 +16,7 @@ omega_max = 1.9     # [1/s]
 v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence rate)
 var_omega = 0.001   # [s^2/u] # the variance in omega per u, where u is the time between measurements
 
-NUM_PARTICLES = 100
+NUM_PARTICLES = 1000
 
 
 
@@ -239,7 +240,7 @@ def main():
     estimators = [grid_mean, dynm_mean, qinfer_mean]
     estimator_names = ['grid_mean', 'dynm_mean', 'qinfer_mean']
     
-    whichthing = 1
+    whichthing = 4
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
@@ -284,7 +285,7 @@ def main():
         pass
     
     elif whichthing == 4:
-        N_list = np.array([1, 3, 10, 30, 100, 300, 1000, 3000, 10000])
+        N_list = np.array([1, 3, 10, 30, 100, 300, 1000])#, 3000, 10000])
         def get_get_strat(N):
             t_min = 0.
             t_max = 4. * np.pi

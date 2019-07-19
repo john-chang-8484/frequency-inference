@@ -4,14 +4,17 @@ from mpl_toolkits.mplot3d import Axes3D
 from plot_util import pin_plot_3d
 
 
+dim3 = False
+
+
 def main():
-    omegas = np.linspace(omega_min, omega_max, 100)
+    omegas = np.linspace(omega_min, omega_max, NUM_PARTICLES)
     prior = normalize(1. + 0.*omegas)
     
-    ts = np.random.uniform(0., 4.*np.pi, 3000)
-    ns = [1] * 3000
+    ts = np.random.uniform(0., 4.*np.pi, 1000)
+    ns = [1] * 1000
     
-    omega_list_true = 1. + 0.5*np.sin(np.linspace(-10., 15., len(ts)))#sample_omega_list(omegas, prior, len(ts))
+    omega_list_true = 1. + 0.5*np.sign(np.linspace(-10., 15., len(ts)))#sample_omega_list(omegas, prior, len(ts))
     ms = many_measure(omega_list_true, ts, ns)
     
     dynm = DynamicDist(omegas, prior)
@@ -46,19 +49,25 @@ def main():
     x_grid, y_grid = np.meshgrid(us, omegas)
     posts = np.stack(posts, axis=-1)
 
+    if dim3:
+        # plotting:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
 
-    # plotting:
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+        pin_plot_3d(ax, particle_us.flatten(), particle_lists.flatten(), weight_lists.flatten(), alpha=0.55, color='tab:orange')
+        ax.plot_wireframe(x_grid, y_grid, posts, alpha=0.4, color='tab:blue')
+        
+        ax.plot(us[1:], omega_list_true, color='g')
+        ax.plot(us[1:], dynm_means, color='tab:orange')
+        ax.plot(us[1:], grid_means, color='tab:blue')
 
-    #pin_plot_3d(ax, particle_us.flatten(), particle_lists.flatten(), weight_lists.flatten(), alpha=0.55, color='tab:orange')
-    #ax.plot_wireframe(x_grid, y_grid, posts, alpha=0.4, color='tab:blue')
-    
-    ax.plot(us[1:], omega_list_true, color='g')
-    ax.plot(us[1:], dynm_means, color='tab:orange')
-    ax.plot(us[1:], grid_means, color='tab:blue')
+        plt.show()
+    else:
+        plt.plot(us[1:], omega_list_true, color='g')
+        plt.plot(us[1:], dynm_means, color='tab:orange')
+        plt.plot(us[1:], grid_means, color='tab:blue')
 
-    plt.show()
+        plt.show()
 
 
 if __name__ == '__main__':
