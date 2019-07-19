@@ -6,13 +6,16 @@ from util import save_data, get_filepath, gammaln, get_numeric_class_vars
 from plot_util import pin_plot
 import inspect
 import math
+from qinfer import simple_est_prec
 
 
 # constants:
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence rate)
-var_omega = 0.0001  # [s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.001   # [s^2/u] # the variance in omega per u, where u is the time between measurements
+
+NUM_PARTICLES = 100
 
 
 
@@ -72,7 +75,7 @@ def get_likelihood(omega, t, n, m):
 
 # RULE: all fn calls should preserve normalization
 class ParticleDist:
-    size = 250
+    size = NUM_PARTICLES
     def normalize(self):
         self.dist = normalize(self.dist)
     def mean(self):
@@ -146,6 +149,12 @@ def dynm_mean(omegas, prior, ts, ns, measurements):
     dist.many_update(ts, ns, measurements)
     return dist.mean()
 
+# benchmark qinfer implementation
+def qinfer_mean(omegas, prior, ts, ns, measurements):
+    data = np.column_stack([np.array(measurements), np.array(ts), np.array(ns)])
+    mean, cov = simple_est_prec(data, freq_min=omega_min, freq_max=omega_max, n_particles=NUM_PARTICLES)
+    return mean
+
 ##                                                                           ##
 ###############################################################################
 
@@ -205,6 +214,7 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
         'omega_max': omega_max,
         'v_0': v_0,
         'var_omega': var_omega,
+        'NUM_PARTICLES': NUM_PARTICLES,
         'omegas': omegas,
         'prior': prior,
         xlistnm: xlist,
@@ -223,11 +233,11 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
 
 
 def main():
-    omegas = np.linspace(omega_min, omega_max, 250)
+    omegas = np.linspace(omega_min, omega_max, NUM_PARTICLES)
     prior = normalize(1. + 0.*omegas)
     
-    estimators = [grid_mean, dynm_mean]
-    estimator_names = ['grid_mean', 'dynm_mean']
+    estimators = [grid_mean, dynm_mean, qinfer_mean]
+    estimator_names = ['grid_mean', 'dynm_mean', 'qinfer_mean']
     
     whichthing = 1
     
@@ -255,7 +265,7 @@ def main():
         plt.show()
         
     elif whichthing == 1:
-        tlist = np.arange(0.1, 16., 5.)
+        tlist = np.arange(0.1, 9., 0.3)
         def get_get_strat(t):
             def get_strat():
                 ts = [t] * 30
