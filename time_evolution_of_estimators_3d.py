@@ -63,9 +63,13 @@ def main():
 
         plt.show()
     else:
-        plt.plot(us[1:], omega_list_true, color='g')
-        plt.plot(us[1:], dynm_means, color='tab:orange')
-        plt.plot(us[1:], grid_means, color='tab:blue')
+        plt.plot(us[1:], omega_list_true, color='g', label='true omega')
+        plt.plot(us[1:], dynm_means, color='tab:orange', label='dynamic_estimator')
+        plt.plot(us[1:], grid_means, color='tab:blue', label='grid_estimator')
+
+        plt.legend()
+        plt.xlabel('time (in number of measurements)')
+        plt.ylabel('omega')
 
         plt.show()
 

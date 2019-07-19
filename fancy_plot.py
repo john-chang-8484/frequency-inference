@@ -74,7 +74,6 @@ def main():
     plotfns[plottype]()
     plt.legend()
     plt.show()
-    print(plottype, [str(t) for t in traces])
 
 
 if __name__ == '__main__':

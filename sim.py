@@ -14,7 +14,7 @@ from qinfer import resamplers
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence rate)
-var_omega = 0.0001  # [s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.001   # [s^2/u] # the variance in omega per u, where u is the time between measurements
 
 NUM_PARTICLES = 1000
 
