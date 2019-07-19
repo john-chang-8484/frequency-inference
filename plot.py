@@ -3,6 +3,7 @@ from matplotlib import pyplot as plt
 from sys import argv
 from util import load_data, Bunch
 
+
 def plot_measure_time(b):
     for loss, var, nm in zip(b.avg_losses, b.avg_loss_vars, b.estimator_names):
         plt.errorbar(b.tlist, loss, yerr=np.sqrt(var), capsize=2, label=nm)
@@ -35,6 +36,8 @@ def plot_measurement_performance(b):
     #plt.ylim(bottom=0.0)
     plt.yscale('log')
     plt.xscale('log')
+    plt.xlabel('number of measurements')
+    plt.ylabel('loss (MSE)')
 
 plotfns = {
     'measure_time': plot_measure_time,
@@ -44,8 +47,10 @@ plotfns = {
     'measurement_performance': plot_measurement_performance
 }
 
+
 def plot(data):
     plotfns[data['plottype']](Bunch(data))
+
 
 def main():
     for filename in argv[1:]:
@@ -53,6 +58,8 @@ def main():
     plt.legend()
     plt.show()
 
+
 if __name__ == '__main__':
     main()
+
 
