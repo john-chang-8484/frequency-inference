@@ -108,8 +108,7 @@ class GridDist(ParticleDist):
 
 class DynamicDist(ParticleDist):
     prob_mass_limit = 0.15
-    a = 1.00  # pg 10, Christopher E Granade et al 2012 New J. Phys. 14 103013
-    b = 0.00  # additional fudge factor for resampling
+    b = 4.2  # additional fudge factor for resampling
     def __init__(self, omegas, prior):
         self.omegas = np.random.choice(omegas, size=self.size, p=prior)
         self.dist = np.ones(self.size) / self.size
@@ -125,14 +124,14 @@ class DynamicDist(ParticleDist):
     def cov(self):
         return np.cov(self.omegas, ddof=0, aweights=self.dist)
     def resample(self):
-        mu = self.mean()
-        sampled_particles = np.random.choice(self.omegas, size=self.size, p=self.dist)
-        mu_i = (self.a * sampled_particles) + ((1 - self.a) * mu)
-        epsilon = np.sqrt(self.b + self.cov() * (1. - self.a**2)) * np.random.randn(self.size) 
-        self.omegas = clip_omega(mu_i + epsilon)
+        cov = self.cov()
+        self.omegas = np.random.choice(self.omegas, size=self.size, p=self.dist)
         self.dist = np.ones(self.size) / self.size
+        cov_new = self.cov()
+        print(cov - cov_new)
+        epsilon =  self.b * max(0., cov - cov_new) * np.random.logistic(loc=0.0, scale = np.sqrt(3)/np.pi, size=self.size)
+        self.omegas = clip_omega(self.omegas + epsilon)
         self.probability_mass = 1.
-        self.normalize()
 
 
 # http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
@@ -289,8 +288,8 @@ def main():
     whichthing = 0
     
     if whichthing == 0:
-        ts = np.random.uniform(0., 4.*np.pi, 3)
-        ns = [1] * 3
+        ts = np.random.uniform(0., 4.*np.pi, 300)
+        ns = [1] * 300
         omega_list_true = sample_omega_list(omegas, prior, len(ts))
         print('true omega:', omega_list_true)
         ms = many_measure(omega_list_true, ts, ns)

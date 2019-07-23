@@ -16,8 +16,8 @@ def main():
     ts = np.random.uniform(0., 4.*np.pi, 1000)
     ns = [1] * 1000
     
-    omega_list_true = 1. + 0.5*np.sign(np.linspace(-5., 5., len(ts)))
-    #omega_list_true = sample_omega_list(omegas, prior, len(ts))
+    #omega_list_true = 1. + 0.5*np.sign(np.linspace(-5., 5., len(ts)))
+    omega_list_true = sample_omega_list(omegas, prior, len(ts))
     ms = many_measure(omega_list_true, ts, ns)
     
     dynm = DynamicDist(omegas, prior)
