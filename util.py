@@ -2,6 +2,7 @@ import pickle
 import datetime
 import math
 import numpy as np
+from qinfer import Distribution
 
 # constants
 SAVE_DIR = './data'
@@ -39,6 +40,7 @@ def get_numeric_class_vars(a_class):
             for key in vars(a_class)
             if type(vars(a_class)[key]) in [int, float]
     }
+
 
 
 '''

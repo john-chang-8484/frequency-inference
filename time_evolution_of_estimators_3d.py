@@ -10,6 +10,8 @@ dim3 = False
 def main():
     omegas = np.linspace(omega_min, omega_max, NUM_PARTICLES)
     prior = normalize(1. + 0.*omegas)
+    #prior[20] = 100. # test a non-uniform prior
+    #prior = normalize(prior)
     
     ts = np.random.uniform(0., 4.*np.pi, 1000)
     ns = [1] * 1000
@@ -20,7 +22,7 @@ def main():
     
     dynm = DynamicDist(omegas, prior)
     grid = GridDist(omegas, prior)
-    qinfer_updater = qinfer.SMCUpdater(qinfer_model, NUM_PARTICLES, qinfer_prior)
+    qinfer_updater = qinfer.SMCUpdater(qinfer_model, NUM_PARTICLES, PriorSample(omegas, prior))
     
     particle_lists = [np.copy(dynm.omegas)]
     weight_lists = [np.copy(dynm.dist)]

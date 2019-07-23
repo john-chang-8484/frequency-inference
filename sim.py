@@ -7,7 +7,7 @@ from plot_util import pin_plot
 import inspect
 import math
 import qinfer
-from qinfer import SimplePrecessionModel
+from qinfer import SimplePrecessionModel, Distribution
 
 
 # constants:
@@ -42,10 +42,10 @@ def perturb_omega(omega):
 # randomly sample from a distribution
 # values should be evenly spaced and in sorted order
 # dist is a probability distribution on values
-def sample_dist(values, dist):
+def sample_dist(values, dist, size=None):
     delta = values[1] - values[0]
-    epsilon = np.random.uniform(-delta / 2, delta / 2)
-    x = np.random.choice(values, p=dist)
+    epsilon = np.random.uniform(-delta / 2, delta / 2, size=size)
+    x = np.random.choice(values, p=dist, size=size)
     return np.clip(x + epsilon, values[0], values[-1]) # <- this is a little bit hacky
 
 
@@ -142,6 +142,14 @@ class DiffusivePrecessionModel(SimplePrecessionModel):
             size=(modelparams.shape[0], 1, expparams.shape[0]))
         return clip_omega(modelparams[:, :, np.newaxis] + steps)
 
+class PriorSample(Distribution):
+    n_rvs = 1
+    def __init__(self, values, dist):
+        self.values = values
+        self.dist = dist
+    def sample(self, n=1):
+        return np.reshape(sample_dist(self.values, self.dist, size=n), (n, 1))
+
 
 ###############################################################################
 ##          Estimators for Omega:                                            ##
@@ -160,10 +168,9 @@ def dynm_mean(omegas, prior, ts, ns, measurements):
 
 # benchmark qinfer implementation
 qinfer_model = DiffusivePrecessionModel(min_freq=omega_min)
-# CAUTION: assumes uniform prior
-qinfer_prior = qinfer.UniformDistribution([omega_min, omega_max])
 # CAUTION: assumes all ns are equal to 1
 def qinfer_mean(omegas, prior, ts, ns, measurements):
+    qinfer_prior = PriorSample(omegas, prior)
     qinfer_updater = qinfer.SMCUpdater(qinfer_model, NUM_PARTICLES, qinfer_prior)
     ests = []
     for t, n, m in zip(ts, ns, measurements):
