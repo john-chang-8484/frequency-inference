@@ -13,8 +13,8 @@ from qinfer import SimplePrecessionModel, Distribution
 # constants:
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
-v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence rate)
-var_omega = 0.000   # [s^2/u] # the variance in omega per u, where u is the time between measurements
+v_0       = 0.0     # [1/s]     # the noise in omega (essentially a decoherence rate)
+var_omega = 0.000   # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
 
 NUM_PARTICLES = 100
 
@@ -74,7 +74,7 @@ def get_likelihood(omega, t, n, m):
     return np.exp(log_likelihood(omega, t, n, m))
 
 
-# RULE: all fn calls should preserve normalization
+# RULE: all fn calls should preserve normalization 
 class ParticleDist:
     size = NUM_PARTICLES
     def normalize(self):
