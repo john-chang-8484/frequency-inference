@@ -6,8 +6,8 @@ from util import save_data, get_filepath, gammaln, get_numeric_class_vars
 from plot_util import pin_plot
 import inspect
 import math
-from qinfer import simple_est_prec
-from qinfer import resamplers
+import qinfer
+from qinfer import SimplePrecessionModel
 
 
 # constants:
@@ -16,7 +16,7 @@ omega_max = 1.9     # [1/s]
 v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence rate)
 var_omega = 0.001   # [s^2/u] # the variance in omega per u, where u is the time between measurements
 
-NUM_PARTICLES = 1000
+NUM_PARTICLES = 100
 
 
 
@@ -135,6 +135,14 @@ class DynamicDist(ParticleDist):
         self.normalize()
 
 
+# http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
+class DiffusivePrecessionModel(SimplePrecessionModel):
+    def update_timestep(self, modelparams, expparams):
+        steps = np.random.normal(0., np.sqrt(var_omega), 
+            size=(modelparams.shape[0], 1, expparams.shape[0]))
+        return clip_omega(modelparams[:, :, np.newaxis] + steps)
+
+
 ###############################################################################
 ##          Estimators for Omega:                                            ##
 
@@ -151,10 +159,17 @@ def dynm_mean(omegas, prior, ts, ns, measurements):
     return dist.mean()
 
 # benchmark qinfer implementation
+qinfer_model = DiffusivePrecessionModel(min_freq=omega_min)
+# CAUTION: assumes uniform prior
+qinfer_prior = qinfer.UniformDistribution([omega_min, omega_max])
+# CAUTION: assumes all ns are equal to 1
 def qinfer_mean(omegas, prior, ts, ns, measurements):
-    data = np.column_stack([np.array(measurements), np.array(ts), np.array(ns)])
-    mean, cov = simple_est_prec(data, freq_min=omega_min, freq_max=omega_max, n_particles=NUM_PARTICLES)
-    return mean
+    qinfer_updater = qinfer.SMCUpdater(qinfer_model, NUM_PARTICLES, qinfer_prior)
+    ests = []
+    for t, n, m in zip(ts, ns, measurements):
+        qinfer_updater.update(np.array([m]), np.array([t]))
+        ests.append(qinfer_updater.est_mean())
+    return qinfer_updater.est_mean()
 
 ##                                                                           ##
 ###############################################################################
@@ -172,7 +187,7 @@ def sample_omega_list(omegas, prior, length):
 # given a prior on omega and a measurement strategy, compute the average loss using monte-carlo
 # loss is the squared difference between estimator and omega's true *final* value
 # each estimator is a fn taking (omegas, prior, ts, ns, measurements)
-# get strat is fn that produces a strategy, may make calls to random
+# get_strat is fn that produces a strategy, may make calls to random
 def avg_loss(omegas, prior, get_strat, estimators, runs=1000):
     avg = np.zeros(len(estimators), dtype=np.float64)
     avgsq = np.zeros(len(estimators), dtype=np.float64)
@@ -194,17 +209,39 @@ def avg_loss(omegas, prior, get_strat, estimators, runs=1000):
                     avgsq[i] = np.nan
     return avg / runs, ((avgsq / runs) - (avg / runs)**2) / runs
 
+# compute median loss
+def med_loss(omegas, prior, get_strat, estimators, runs=1000):
+    data = np.zeros((runs, len(estimators)), dtype=np.float64)
+    avgsq = np.zeros(len(estimators), dtype=np.float64)
+    no_exception_yet = [True] * len(estimators) # keep track of which estimators have had exceptions so far
+    for r in range(0, runs):
+        ts, ns = get_strat()
+        omega_list = sample_omega_list(omegas, prior, len(ts))
+        ms = many_measure(omega_list, ts, ns)
+        # each estimator sees the same measurements
+        for i, estimator in enumerate(estimators):
+            if no_exception_yet[i]:
+                try:
+                    omega_est = estimator(omegas, prior, ts, ns, ms)
+                    data[r, i] = (omega_list[-1] - omega_est)**2
+                    avgsq[i] += (omega_list[-1] - omega_est)**4
+                except RuntimeError:
+                    no_exception_yet[i] = False
+                    data[r, i] = np.nan
+                    avgsq[i] = np.nan
+    return np.median(data, axis=0), ((avgsq / runs) - (np.sum(data, axis=0) / runs)**2)
+
 # get_get_strat is fn of x
 def avg_loss_of_x(xlist, omegas, prior, get_get_strat, estimators, runs=1000):
     avg_losses = [[] for i in range(0, len(estimators))]
     avg_loss_vars = [[] for i in range(0, len(estimators))]
     for x in xlist:
         print(x)
-        avgloss, avgloss_var = avg_loss(omegas, prior,
+        avgloss_x, avgloss_var_x = avg_loss(omegas, prior,
             get_get_strat(x), estimators, runs)
         for i in range(0, len(estimators)):
-            avg_losses[i].append(avgloss[i])
-            avg_loss_vars[i].append(avgloss_var[i])
+            avg_losses[i].append(avgloss_x[i])
+            avg_loss_vars[i].append(avgloss_var_x[i])
     return avg_losses, avg_loss_vars
 
 
@@ -237,10 +274,10 @@ def main():
     omegas = np.linspace(omega_min, omega_max, NUM_PARTICLES)
     prior = normalize(1. + 0.*omegas)
     
-    estimators = [grid_mean, dynm_mean]#, qinfer_mean]
-    estimator_names = ['grid_mean', 'dynm_mean']#, 'qinfer_mean']
+    estimators = [grid_mean, dynm_mean, qinfer_mean]
+    estimator_names = ['grid_mean', 'dynm_mean', 'qinfer_mean']
     
-    whichthing = 4
+    whichthing = 0
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
@@ -259,6 +296,7 @@ def main():
         plt.plot(omegas, grid.dist, label='posterior')
         for dist, nm in [(grid, 'grid_mean'), (dynm, 'dynm_mean')]:
             plt.plot([dist.mean()], prior[0], marker='o', label=nm)
+        plt.plot([qinfer_mean(omegas, prior, ts, ns, ms)], prior[0], marker='o', label='qinfer_mean')
         plt.plot(omega_list_true, np.linspace(0., prior[0], len(ts)),
             marker='*', markersize=10, label='true_omega', color=(0., 0., 0.))
         plt.legend()
@@ -285,7 +323,7 @@ def main():
         pass
     
     elif whichthing == 4:
-        N_list = np.array([1, 3, 10, 30, 100, 300, 1000])#, 3000, 10000])
+        N_list = np.array([1, 3, 10, 30, 100, 300])#, 1000])#, 3000, 10000])
         def get_get_strat(N):
             t_min = 0.
             t_max = 4. * np.pi
