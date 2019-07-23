@@ -14,7 +14,7 @@ from qinfer import SimplePrecessionModel, Distribution
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.0     # [1/s]   # the noise in omega (essentially a decoherence rate)
-var_omega = 0.001   # [s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.000   # [s^2/u] # the variance in omega per u, where u is the time between measurements
 
 NUM_PARTICLES = 100
 
@@ -108,8 +108,8 @@ class GridDist(ParticleDist):
 
 class DynamicDist(ParticleDist):
     prob_mass_limit = 0.15
-    a = 0.99  # pg 10, Christopher E Granade et al 2012 New J. Phys. 14 103013
-    b = 0.02  # additional fudge factor for resampling
+    a = 1.00  # pg 10, Christopher E Granade et al 2012 New J. Phys. 14 103013
+    b = 0.00  # additional fudge factor for resampling
     def __init__(self, omegas, prior):
         self.omegas = np.random.choice(omegas, size=self.size, p=prior)
         self.dist = np.ones(self.size) / self.size
@@ -169,14 +169,16 @@ def dynm_mean(omegas, prior, ts, ns, measurements):
 # benchmark qinfer implementation
 qinfer_model = DiffusivePrecessionModel(min_freq=omega_min)
 # CAUTION: assumes all ns are equal to 1
-def qinfer_mean(omegas, prior, ts, ns, measurements):
+# make a qinfer inductor, update it with all measurements
+def qinfer_make(omegas, prior, ts, ns, measurements):
     qinfer_prior = PriorSample(omegas, prior)
     qinfer_updater = qinfer.SMCUpdater(qinfer_model, NUM_PARTICLES, qinfer_prior)
-    ests = []
     for t, n, m in zip(ts, ns, measurements):
         qinfer_updater.update(np.array([m]), np.array([t]))
-        ests.append(qinfer_updater.est_mean())
-    return qinfer_updater.est_mean()
+    return qinfer_updater
+# CAUTION: assumes all ns are equal to 1
+def qinfer_mean(omegas, prior, ts, ns, measurements):
+    return qinfer_make(omegas, prior, ts, ns, measurements).est_mean()
 
 ##                                                                           ##
 ###############################################################################
@@ -287,8 +289,8 @@ def main():
     whichthing = 0
     
     if whichthing == 0:
-        ts = np.random.uniform(0., 4.*np.pi, 300)
-        ns = [1] * 300
+        ts = np.random.uniform(0., 4.*np.pi, 3)
+        ns = [1] * 3
         omega_list_true = sample_omega_list(omegas, prior, len(ts))
         print('true omega:', omega_list_true)
         ms = many_measure(omega_list_true, ts, ns)
@@ -297,13 +299,17 @@ def main():
         dynm = DynamicDist(omegas, prior)
         grid.many_update(ts, ns, ms)
         dynm.many_update(ts, ns, ms)
+        qinfer_updater = qinfer_make(omegas, prior, ts, ns, ms)
         
         pin_plot(dynm.omegas, dynm.dist)
         plt.plot(omegas, prior, label='prior')
         plt.plot(omegas, grid.dist, label='posterior')
-        for dist, nm in [(grid, 'grid_mean'), (dynm, 'dynm_mean')]:
+        
+        qinfer_omegas, qinfer_post = qinfer_updater.posterior_marginal(res=25)
+        plt.plot(qinfer_omegas, normalize(qinfer_post), label='qinfer posterior')
+        
+        for dist, nm in [(grid, 'grid_mean'), (dynm, 'dynm_mean'), (qinfer_updater.est_mean(), 'qinfer_mean')]:
             plt.plot([dist.mean()], prior[0], marker='o', label=nm)
-        plt.plot([qinfer_mean(omegas, prior, ts, ns, ms)], prior[0], marker='o', label='qinfer_mean')
         plt.plot(omega_list_true, np.linspace(0., prior[0], len(ts)),
             marker='*', markersize=10, label='true_omega', color=(0., 0., 0.))
         plt.legend()
@@ -330,7 +336,7 @@ def main():
         pass
     
     elif whichthing == 4:
-        N_list = np.array([1, 3, 10, 30, 100, 300])#, 1000])#, 3000, 10000])
+        N_list = np.array([1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000, 3000, 6000, 10000])
         def get_get_strat(N):
             t_min = 0.
             t_max = 4. * np.pi
