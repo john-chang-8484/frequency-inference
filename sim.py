@@ -211,13 +211,12 @@ def do_runs(omegas, prior, get_strat, estimators, runs=1000):
                     run_hist[:, i] = np.nan
     avg_loss = np.squeeze( np.sum(run_hist, axis=0) / runs )
     var_loss = np.squeeze( np.sum(run_hist**2, axis=0) / runs ) - avg_loss**2
-    med_loss = np.squeeze( np.median(run_hist, axis=0) )
-    return run_hist, avg_loss, var_loss, med_loss
+    return run_hist, avg_loss, var_loss
 
 
 # get_get_strat is fn of x
 def do_runs_of_x(xlist, omegas, prior, get_get_strat, estimators, runs=1000):
-    run_hists, avg_losses, var_losses, med_losses = [], [], [], []
+    run_hists, avg_losses, var_losses = [], [], []
     for x in xlist:
         print('\t...\t', x) # show progress
         run_hist, avg_loss, var_loss, med_loss = do_runs(omegas, prior,
@@ -225,13 +224,12 @@ def do_runs_of_x(xlist, omegas, prior, get_get_strat, estimators, runs=1000):
         run_hists.append(run_hist)
         avg_losses.append(avg_loss)
         var_losses.append(var_loss)
-        med_losses.append(med_loss)
-    return ( np.array(run_hists).transpose((2, 0, 1)), np.array(avg_losses).T,
-             np.array(var_losses).T, np.array(med_losses).T )
+    return ( np.array(run_hists).transpose((2, 0, 1)),
+        np.array(avg_losses).T, np.array(var_losses).T )
 
 
 def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimators, estimator_names, runs=1000):
-    run_hists, avg_losses, var_losses, med_losses = do_runs_of_x(xlist, omegas, prior, get_get_strat, estimators, runs)
+    run_hists, avg_losses, var_losses = do_runs_of_x(xlist, omegas, prior, get_get_strat, estimators, runs)
     data = {
         'omega_min': omega_min,
         'omega_max': omega_max,
@@ -247,7 +245,6 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
         'run_hists': run_hists,
         'avg_losses': avg_losses,
         'avg_loss_vars': var_losses,
-        'med_losses': med_losses,
         'plottype': plottype,
         'particle_params': get_numeric_class_vars(ParticleDist),
         'grid_params': get_numeric_class_vars(GridDist),
