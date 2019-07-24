@@ -43,9 +43,9 @@ def get_numeric_class_vars(a_class):
 
 
 
-'''
+
 # deterministically sample n numbers (from 0 to p.size-1) with a probability distribution p
 def deterministic_sample(n, p):
     return np.clip(np.floor(np.cumsum(p) * n), 0, p.size-1).astype(int)
-'''
+
 

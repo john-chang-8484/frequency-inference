@@ -14,7 +14,7 @@ from qinfer import SimplePrecessionModel, Distribution
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.0     # [1/s]     # the noise in omega (essentially a decoherence rate)
-var_omega = 0.000   # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.001   # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
 
 NUM_PARTICLES = 100
 
@@ -107,8 +107,9 @@ class GridDist(ParticleDist):
 
 
 class DynamicDist(ParticleDist):
-    prob_mass_limit = 0.15
-    b = 4.2  # additional fudge factor for resampling
+    prob_mass_limit = 0.525
+    a = 0.2
+    b = 4.2 # additional fudge factor for resampling
     def __init__(self, omegas, prior):
         self.omegas = np.random.choice(omegas, size=self.size, p=prior)
         self.dist = np.ones(self.size) / self.size
@@ -128,8 +129,11 @@ class DynamicDist(ParticleDist):
         self.omegas = np.random.choice(self.omegas, size=self.size, p=self.dist)
         self.dist = np.ones(self.size) / self.size
         cov_new = self.cov()
-        print(cov - cov_new)
-        epsilon =  self.b * max(0., cov - cov_new) * np.random.logistic(loc=0.0, scale = np.sqrt(3)/np.pi, size=self.size)
+        delta_cov = max(0., cov - cov_new)
+        additional_var = (self.b * delta_cov) + (self.a * cov)
+        #epsilon = (self.a * cov + self.b * max(0., cov - cov_new)) * np.random.logistic(loc=0.0, scale = np.sqrt(3)/np.pi, size=self.size)
+        epsilon = ( np.random.exponential(scale=np.sqrt(additional_var/2), size=self.size) -
+            np.random.exponential(scale=np.sqrt(additional_var/2), size=self.size) )
         self.omegas = clip_omega(self.omegas + epsilon)
         self.probability_mass = 1.
 
@@ -285,7 +289,7 @@ def main():
     estimators = [grid_mean, dynm_mean, qinfer_mean]
     estimator_names = ['grid_mean', 'dynm_mean', 'qinfer_mean']
     
-    whichthing = 0
+    whichthing = 1
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
@@ -335,7 +339,7 @@ def main():
         pass
     
     elif whichthing == 4:
-        N_list = np.array([1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000, 3000, 6000, 10000])
+        N_list = np.array([1, 2, 3, 6, 10, 20, 30, 60, 100])#, 200, 300, 600, 1000, 2000, 3000, 6000, 10000])
         def get_get_strat(N):
             t_min = 0.
             t_max = 4. * np.pi
