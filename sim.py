@@ -219,7 +219,7 @@ def do_runs_of_x(xlist, omegas, prior, get_get_strat, estimators, runs=1000):
     run_hists, avg_losses, var_losses = [], [], []
     for x in xlist:
         print('\t...\t', x) # show progress
-        run_hist, avg_loss, var_loss, med_loss = do_runs(omegas, prior,
+        run_hist, avg_loss, var_loss = do_runs(omegas, prior,
             get_get_strat(x), estimators, runs)
         run_hists.append(run_hist)
         avg_losses.append(avg_loss)
@@ -261,7 +261,7 @@ def main():
     estimators = [grid_mean, dynm_mean, qinfer_mean]
     estimator_names = ['grid_mean', 'dynm_mean', 'qinfer_mean']
     
-    whichthing = 1
+    whichthing = 4
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
