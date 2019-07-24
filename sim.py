@@ -50,28 +50,24 @@ def sample_dist(values, dist, size=None):
 
 
 # returns the number of excited states measured
-def measure(omega, t, n):
-    return np.random.binomial(n, prob_excited(t, omega))
+def measure(omega, t):
+    return np.random.binomial(1, prob_excited(t, omega))
 
-# make many measurements given a list of omegas, ts, ns
+# make many measurements given a list of omegas, ts
 # assume spacing between measurements is large
-def many_measure(omega_list, ts, ns):
-    return np.array([measure(omega, t, n) for omega, t, n in zip(omega_list, ts, ns)])
+def many_measure(omega_list, ts):
+    return np.array([measure(omega, t) for omega, t in zip(omega_list, ts)])
+
+
+def get_likelihood(omega, t, m):
+    pe = prob_excited(t, omega)
+    return (pe * m) + (1 - pe) * (1 - m)
 
 
 # gives the log-likelihood of a particular omega, given some measurement m
-def log_likelihood(omega, t, n, m):
-    pe = prob_excited(t, omega)
-    ans = (
-        gammaln[1 + n] - gammaln[1 + m] - gammaln[1 + n - m] +  # binomial coefficient
-        m * np.log(pe) +             # p^m
-        (n - m) * np.log(1. - pe)    # (1-p)^(n-m)
-    )
-    ans[np.isnan(ans)] = -np.inf # deal with zero values
-    return ans
+def log_likelihood(omega, t, m):
+    return np.log(get_likelihood(omega, t, n))
 
-def get_likelihood(omega, t, n, m):
-    return np.exp(log_likelihood(omega, t, n, m))
 
 
 # RULE: all fn calls should preserve normalization 
@@ -81,10 +77,10 @@ class ParticleDist:
         self.dist = normalize(self.dist)
     def mean(self):
         return np.sum(self.dist * self.omegas)
-    def many_update(self, ts, ns, ms):
-        for t, n, m in zip(ts, ns, ms):
+    def many_update(self, ts, ms):
+        for t, m in zip(ts, ms):
             self.wait_u()
-            self.update(t, n, m)
+            self.update(t, m)
 
 
 class GridDist(ParticleDist):
@@ -101,8 +97,8 @@ class GridDist(ParticleDist):
         n = np.arange(cos_coeffs.size)
         cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
         self.dist = idct(cos_coeffs) / (2 * cos_coeffs.size) # switch back to the usual representation
-    def update(self, t, n, m):
-        self.dist *= get_likelihood(self.omegas, t, n, m)
+    def update(self, t, m):
+        self.dist *= get_likelihood(self.omegas, t, m)
         self.normalize()
 
 
@@ -116,8 +112,8 @@ class DynamicDist(ParticleDist):
         self.probability_mass = 1. # fraction of probability mass remaining since last resampling
     def wait_u(self):
         self.omegas = perturb_omega(self.omegas)
-    def update(self, t, n, m):
-        self.dist *= get_likelihood(self.omegas, t, n, m)
+    def update(self, t, m):
+        self.dist *= get_likelihood(self.omegas, t, m)
         self.probability_mass *= np.sum(self.dist)
         self.normalize()
         if self.probability_mass < self.prob_mass_limit:
@@ -158,30 +154,28 @@ class PriorSample(Distribution):
 ##          Estimators for Omega:                                            ##
 
 # estimates omega at the mean of the posterior dist
-def grid_mean(omegas, prior, ts, ns, measurements):
+def grid_mean(omegas, prior, ts, measurements):
     dist = GridDist(omegas, prior)
-    dist.many_update(ts, ns, measurements)
+    dist.many_update(ts, measurements)
     return dist.mean()
 
 # uses particle method to estimate omega
-def dynm_mean(omegas, prior, ts, ns, measurements):
+def dynm_mean(omegas, prior, ts, measurements):
     dist = DynamicDist(omegas, prior)
-    dist.many_update(ts, ns, measurements)
+    dist.many_update(ts, measurements)
     return dist.mean()
 
 # benchmark qinfer implementation
 qinfer_model = DiffusivePrecessionModel(min_freq=omega_min)
-# CAUTION: assumes all ns are equal to 1
 # make a qinfer inductor, update it with all measurements
-def qinfer_make(omegas, prior, ts, ns, measurements):
+def qinfer_make(omegas, prior, ts, measurements):
     qinfer_prior = PriorSample(omegas, prior)
     qinfer_updater = qinfer.SMCUpdater(qinfer_model, NUM_PARTICLES, qinfer_prior)
-    for t, n, m in zip(ts, ns, measurements):
+    for t, m in zip(ts, measurements):
         qinfer_updater.update(np.array([m]), np.array([t]))
     return qinfer_updater
-# CAUTION: assumes all ns are equal to 1
-def qinfer_mean(omegas, prior, ts, ns, measurements):
-    return qinfer_make(omegas, prior, ts, ns, measurements).est_mean()
+def qinfer_mean(omegas, prior, ts, measurements):
+    return qinfer_make(omegas, prior, ts, measurements).est_mean()
 
 ##                                                                           ##
 ###############################################################################
@@ -196,69 +190,48 @@ def sample_omega_list(omegas, prior, length):
     return omega_list
 
 
-# given a prior on omega and a measurement strategy, compute the average loss using monte-carlo
-# loss is the squared difference between estimator and omega's true *final* value
-# each estimator is a fn taking (omegas, prior, ts, ns, measurements)
-# get_strat is fn that produces a strategy, may make calls to random
-def avg_loss(omegas, prior, get_strat, estimators, runs=1000):
-    avg = np.zeros(len(estimators), dtype=np.float64)
-    avgsq = np.zeros(len(estimators), dtype=np.float64)
+# given a prior on omega and a measurement strategy, 
+# do runs runs, storing the loss for each
+# also returns some useful statistics
+def do_runs(omegas, prior, get_strat, estimators, runs=1000):
+    run_hist = np.zeros((runs, len(estimators)), dtype=np.float64)
     no_exception_yet = [True] * len(estimators) # keep track of which estimators have had exceptions so far
     for r in range(0, runs):
-        ts, ns = get_strat()
+        ts = get_strat()
         omega_list = sample_omega_list(omegas, prior, len(ts))
-        ms = many_measure(omega_list, ts, ns)
+        ms = many_measure(omega_list, ts)
         # each estimator sees the same measurements
         for i, estimator in enumerate(estimators):
             if no_exception_yet[i]:
                 try:
-                    omega_est = estimator(omegas, prior, ts, ns, ms)
-                    avg[i] += (omega_list[-1] - omega_est)**2
-                    avgsq[i] += (omega_list[-1] - omega_est)**4
+                    omega_est = estimator(omegas, prior, ts, ms)
+                    run_hist[r, i] = (omega_list[-1] - omega_est)**2
                 except RuntimeError:
                     no_exception_yet[i] = False
-                    avg[i] = np.nan
-                    avgsq[i] = np.nan
-    return avg / runs, ((avgsq / runs) - (avg / runs)**2) / runs
+                    run_hist[:, i] = np.nan
+    avg_loss = np.squeeze( np.sum(run_hist, axis=0) / runs )
+    var_loss = np.squeeze( np.sum(run_hist**2, axis=0) / runs ) - avg_loss**2
+    med_loss = np.squeeze( np.median(run_hist, axis=0) )
+    return run_hist, avg_loss, var_loss, med_loss
 
-# compute median loss
-def med_loss(omegas, prior, get_strat, estimators, runs=1000):
-    data = np.zeros((runs, len(estimators)), dtype=np.float64)
-    avgsq = np.zeros(len(estimators), dtype=np.float64)
-    no_exception_yet = [True] * len(estimators) # keep track of which estimators have had exceptions so far
-    for r in range(0, runs):
-        ts, ns = get_strat()
-        omega_list = sample_omega_list(omegas, prior, len(ts))
-        ms = many_measure(omega_list, ts, ns)
-        # each estimator sees the same measurements
-        for i, estimator in enumerate(estimators):
-            if no_exception_yet[i]:
-                try:
-                    omega_est = estimator(omegas, prior, ts, ns, ms)
-                    data[r, i] = (omega_list[-1] - omega_est)**2
-                    avgsq[i] += (omega_list[-1] - omega_est)**4
-                except RuntimeError:
-                    no_exception_yet[i] = False
-                    data[r, i] = np.nan
-                    avgsq[i] = np.nan
-    return np.median(data, axis=0), ((avgsq / runs) - (np.sum(data, axis=0) / runs)**2)
 
 # get_get_strat is fn of x
-def avg_loss_of_x(xlist, omegas, prior, get_get_strat, estimators, runs=1000):
-    avg_losses = [[] for i in range(0, len(estimators))]
-    avg_loss_vars = [[] for i in range(0, len(estimators))]
+def do_runs_of_x(xlist, omegas, prior, get_get_strat, estimators, runs=1000):
+    run_hists, avg_losses, var_losses, med_losses = [], [], [], []
     for x in xlist:
-        print(x)
-        avgloss_x, avgloss_var_x = avg_loss(omegas, prior,
+        print('\t...\t', x) # show progress
+        run_hist, avg_loss, var_loss, med_loss = do_runs(omegas, prior,
             get_get_strat(x), estimators, runs)
-        for i in range(0, len(estimators)):
-            avg_losses[i].append(avgloss_x[i])
-            avg_loss_vars[i].append(avgloss_var_x[i])
-    return avg_losses, avg_loss_vars
+        run_hists.append(run_hist)
+        avg_losses.append(avg_loss)
+        var_losses.append(var_loss)
+        med_losses.append(med_loss)
+    return ( np.array(run_hists).transpose((2, 0, 1)), np.array(avg_losses).T,
+             np.array(var_losses).T, np.array(med_losses).T )
 
 
 def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimators, estimator_names, runs=1000):
-    avg_losses, avg_loss_vars = avg_loss_of_x(xlist, omegas, prior, get_get_strat, estimators, runs)
+    run_hists, avg_losses, var_losses, med_losses = do_runs_of_x(xlist, omegas, prior, get_get_strat, estimators, runs)
     data = {
         'omega_min': omega_min,
         'omega_max': omega_max,
@@ -271,8 +244,10 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
         'estimator_names': estimator_names,
         'get_get_strat': inspect.getsource(get_get_strat),
         'runs': runs,
+        'run_hists': run_hists,
         'avg_losses': avg_losses,
-        'avg_loss_vars': avg_loss_vars,
+        'avg_loss_vars': var_losses,
+        'med_losses': med_losses,
         'plottype': plottype,
         'particle_params': get_numeric_class_vars(ParticleDist),
         'grid_params': get_numeric_class_vars(GridDist),
@@ -293,16 +268,15 @@ def main():
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
-        ns = [1] * 300
         omega_list_true = sample_omega_list(omegas, prior, len(ts))
         print('true omega:', omega_list_true)
-        ms = many_measure(omega_list_true, ts, ns)
+        ms = many_measure(omega_list_true, ts)
         print(ms)
         grid = GridDist(omegas, prior)
         dynm = DynamicDist(omegas, prior)
-        grid.many_update(ts, ns, ms)
-        dynm.many_update(ts, ns, ms)
-        qinfer_updater = qinfer_make(omegas, prior, ts, ns, ms)
+        grid.many_update(ts, ms)
+        dynm.many_update(ts, ms)
+        qinfer_updater = qinfer_make(omegas, prior, ts, ms)
         
         pin_plot(dynm.omegas, dynm.dist)
         plt.plot(omegas, prior, label='prior')
@@ -323,9 +297,7 @@ def main():
         tlist = np.arange(0.1, 9., 0.3)
         def get_get_strat(t):
             def get_strat():
-                ts = [t] * 30
-                ns = [1] * 30
-                return ts, ns
+                return [t] * 30
             return get_strat
 
         save_x_trace('measure_time', tlist, 'tlist',
@@ -344,9 +316,7 @@ def main():
             t_min = 0.
             t_max = 4. * np.pi
             def get_strat():
-                ts = np.random.uniform(t_min, t_max, N)
-                ns = np.ones(N, dtype=np.int64)
-                return ts, ns
+                return np.random.uniform(t_min, t_max, N)
             return get_strat
         save_x_trace('measurement_performance', N_list, 'N_list',
             omegas, prior, get_get_strat, estimators, estimator_names, runs=500)
@@ -357,8 +327,7 @@ def main():
         def get_get_strat(n):
             def get_strat():
                 ts = [7.3] * n
-                ns = [1] * n
-                return ts, ns
+                return ts
             return get_strat
 
         save_x_trace('measure_number', nlist, 'nlist',
