@@ -8,7 +8,7 @@ def plot_measure_time(b):
     n_estimators = b.run_hists.shape[0]
     colourmap = plt.get_cmap('jet')
     colours = [colourmap(k) for k in np.linspace(0., 1., n_estimators)]
-    which_percentiles = np.array([25, 20, 75])
+    which_percentiles = np.array([])#25, 50, 75])
     for i, run_hist, loss, nm in zip(range(n_estimators), b.run_hists, b.avg_losses, b.estimator_names):
         plt.plot(b.tlist, loss, label=nm, color=colours[i])
         percentiles = np.percentile(run_hist, which_percentiles, axis=1)
@@ -40,9 +40,14 @@ def plot_t_theta_loss(b):
     plt.yscale('log')
 
 def plot_measurement_performance(b):
-    for loss, var, nm in zip(b.avg_losses, b.avg_loss_vars, b.estimator_names):
-        plt.errorbar(b.N_list, loss, yerr=np.sqrt(var), capsize=2, label=nm)
-    #plt.ylim(bottom=0.0)
+    n_estimators = b.run_hists.shape[0]
+    colourmap = plt.get_cmap('jet')
+    colours = [colourmap(k) for k in np.linspace(0., 1., n_estimators)]
+    which_percentiles = np.array([])#[25, 50, 75, 90, 99])
+    for i, run_hist, loss, nm in zip(range(n_estimators), b.run_hists, b.avg_losses, b.estimator_names):
+        plt.plot(b.N_list, loss, label=nm, color=colours[i])
+        percentiles = np.percentile(run_hist, which_percentiles, axis=1)
+        plt.plot(b.N_list.reshape((1,) + b.N_list.shape).repeat(which_percentiles.size, 0), percentiles, marker='o', linestyle='None', color=colours[i])
     plt.plot(b.N_list, b.N_list*0 + ((b.omega_max - b.omega_min) / b.NUM_PARTICLES)**2 / 12, label='grid bound')
     plt.plot(b.N_list, b.N_list*0 + 3*b.var_omega, label='an estimated bound')
     plt.yscale('log')

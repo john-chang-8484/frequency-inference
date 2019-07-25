@@ -14,11 +14,10 @@ def main():
     #prior = normalize(prior)
     
     ts = np.random.uniform(0., 4.*np.pi, 1000)
-    ns = [1] * 1000
     
     #omega_list_true = 1. + 0.5*np.sign(np.linspace(-5., 5., len(ts)))
     omega_list_true = sample_omega_list(omegas, prior, len(ts))
-    ms = many_measure(omega_list_true, ts, ns)
+    ms = many_measure(omega_list_true, ts)
     
     dynm = DynamicDist(omegas, prior)
     grid = GridDist(omegas, prior)
@@ -32,11 +31,11 @@ def main():
     dynm_means = []
     qinfer_means = []
     
-    for t, n, m in zip(ts, ns, ms):
+    for t, m in zip(ts, ms):
         grid.wait_u()
-        grid.update(t, n, m)
+        grid.update(t, m)
         dynm.wait_u()
-        dynm.update(t, n, m)
+        dynm.update(t, m)
         qinfer_updater.update(np.array([m]), np.array([t]))
         
         particle_lists.append(np.copy(dynm.omegas))

@@ -14,7 +14,7 @@ from qinfer import SimplePrecessionModel, Distribution
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.0     # [1/s]     # the noise in omega (essentially a decoherence rate)
-var_omega = 0.001   # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.0001  # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
 
 NUM_PARTICLES = 100
 
@@ -218,7 +218,7 @@ def do_runs(omegas, prior, get_strat, estimators, runs=1000):
 def do_runs_of_x(xlist, omegas, prior, get_get_strat, estimators, runs=1000):
     run_hists, avg_losses, var_losses = [], [], []
     for x in xlist:
-        print('\t...\t', x) # show progress
+        print('\t...\t  ', x) # show progress
         run_hist, avg_loss, var_loss = do_runs(omegas, prior,
             get_get_strat(x), estimators, runs)
         run_hists.append(run_hist)
@@ -308,7 +308,7 @@ def main():
         pass
     
     elif whichthing == 4:
-        N_list = np.array([1, 2, 3, 6, 10, 20, 30, 60, 100])#, 200, 300, 600, 1000, 2000, 3000, 6000, 10000])
+        N_list = np.array([1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000, 3000, 6000, 10000])
         def get_get_strat(N):
             t_min = 0.
             t_max = 4. * np.pi
@@ -316,7 +316,7 @@ def main():
                 return np.random.uniform(t_min, t_max, N)
             return get_strat
         save_x_trace('measurement_performance', N_list, 'N_list',
-            omegas, prior, get_get_strat, estimators, estimator_names, runs=500)
+            omegas, prior, get_get_strat, estimators, estimator_names, runs=1000)
     
     elif whichthing == 5:
         nlist = np.concatenate([np.arange(1, 10, 1), np.arange(10, 20, 2),
