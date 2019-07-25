@@ -14,7 +14,7 @@ from qinfer import SimplePrecessionModel, Distribution
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.0     # [1/s]     # the noise in omega (essentially a decoherence rate)
-var_omega = 0.0000  # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.0001  # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
 
 NUM_PARTICLES = 100
 
@@ -294,7 +294,7 @@ def main():
         tlist = np.arange(0.1, 9., 0.3)
         def get_get_strat(t):
             def get_strat():
-                return [t] * 30
+                return [t] * 300
             return get_strat
 
         save_x_trace('measure_time', tlist, 'tlist',

@@ -20,7 +20,7 @@ class Trace:
     def plot(self):
         plt.errorbar(
             vars(self.b)[self.plottype2xlistnm[self.b.plottype]],
-            self.loss, yerr=np.sqrt(self.var),
+            self.loss, yerr=np.sqrt(self.var)/np.sqrt(self.b.runs),
             capsize=2, label=self.nm
         )
 
