@@ -1,6 +1,9 @@
 import numpy as np
-from sim import *
 from scipy.fftpack import dct, idct
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+from sim import *
 
 
 
@@ -52,20 +55,28 @@ class GridDist(ParticleDist):
 
 
 
-def main():
-    n_measurements = 300    
-    
-    v1s = np.linspace(0., 0.1, 131)
-    v1_prior = normalize(1. + 0.*v1s)
-    omegas = np.linspace(omega_min, omega_max, 100)
-    omega_prior = normalize(1. + 0.*omegas)
+def get_measurements(v1s, v1_prior, omegas, omega_prior, get_ts, n_ms):
+    ts = get_ts(n_ms)
     
     v1_true = sample_dist(v1s, v1_prior)
-    
-    ts = np.random.uniform(0., 4.*np.pi, 300)
-    
-    omega_list_true = sample_omega_list(omegas, omega_prior, v1_true, ts.size)
+    omega_list_true = sample_omega_list(omegas, omega_prior, v1_true, n_ms)
     ms = many_measure(omega_list_true, ts)
+    
+    return v1_true, omega_list_true, ts, ms
+
+
+def main():
+    log_v1s = np.linspace(-16., -2., 103)
+    v1s = np.exp(log_v1s)
+    v1_prior = normalize(1. + 0.*v1s)
+    omegas = np.linspace(omega_min, omega_max, 400)
+    omega_prior = normalize(1. + 0.*omegas)
+    
+    def get_ts(n_ms):
+        return np.random.uniform(0., 4.*np.pi, n_ms)
+    
+    v1_true, omega_list_true, ts, ms = get_measurements(v1s, v1_prior, omegas,
+        omega_prior, get_ts, 300)
     
     ####
     
@@ -77,6 +88,13 @@ def main():
     print(grid.mean_omega(), omega_list_true[-1])
     print(grid.mean_v1(), v1_true)
     
+    ####
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    X, Y = np.meshgrid(log_v1s, omegas)
+    ax.plot_surface(X, Y, grid.dist, cmap=plt.get_cmap('copper'))
+    plt.show()
 
 
 if __name__ == '__main__':
