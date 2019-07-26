@@ -27,7 +27,7 @@ def prob_excited(t, omega):
 
 # normalize a discrete probability distribution
 def normalize(dist):
-    return dist / np.sum(dist, axis=-1)
+    return dist / np.sum(dist)
 
 
 # clip a set of omega values to the range
