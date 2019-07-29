@@ -54,6 +54,22 @@ class GridDist(ParticleDist):
         self.normalize()
 
 
+class KalmanSwarm(ParticleDist):
+    def __init__(self, omegas, v1s, prior):
+        assert omegas.shape + v1s.shape == prior.shape
+        self.shape = prior.shape
+        self.omegas = np.repeat(np.copy(omegas).reshape((omegas.size, 1)), v1s.size, axis=1).flatten()
+        self.v1s = np.repeat(np.copy(v1s).reshape((1, v1s.size)), omegas.size, axis=0).flatten()
+        self.dist = np.copy(prior).flatten()
+        self.omega_vars = np.ones_like(self.dist) * ((omegas[-1] - omegas[0]) / omegas.size)**2
+        self.v1_vars = np.ones_like(self.dist) * ((v1s[-1] - v1s[0]) / omegas.size)*s*2
+    def wait_u(self):
+        drift = np.random.normal(0., np.sqrt(self.v1s))
+        self.omegas += drift
+        self.omega_vars += self.v1s
+    def update(self, t, m):
+        pass
+
 
 def get_measurements(v1s, v1_prior, omegas, omega_prior, get_ts, n_ms):
     ts = get_ts(n_ms)
@@ -66,17 +82,17 @@ def get_measurements(v1s, v1_prior, omegas, omega_prior, get_ts, n_ms):
 
 
 def main():
-    log_v1s = np.linspace(-16., -2., 103)
+    log_v1s = np.linspace(-12., -3., 33)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
-    omegas = np.linspace(omega_min, omega_max, 400)
+    omegas = np.linspace(omega_min, omega_max, 40)
     omega_prior = normalize(1. + 0.*omegas)
     
     def get_ts(n_ms):
         return np.random.uniform(0., 4.*np.pi, n_ms)
     
     v1_true, omega_list_true, ts, ms = get_measurements(v1s, v1_prior, omegas,
-        omega_prior, get_ts, 300)
+        omega_prior, get_ts, 10000)
     
     ####
     
@@ -85,6 +101,7 @@ def main():
     
     ####
     
+    print(grid.dist[grid.dist<-0.001])
     print(grid.mean_omega(), omega_list_true[-1])
     print(grid.mean_v1(), v1_true)
     
