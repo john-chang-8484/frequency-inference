@@ -120,7 +120,7 @@ n_runs, x_list, x_list_nm):
         'x_list_nm': x_list_nm,
         'x_list': x_list,
         'estimator_name': est_class.name,
-        'get_get_strat': inspect.getsource(get_get_ts),
+        'get_get_ts': inspect.getsource(get_get_ts),
         'get_get_v1': inspect.getsource(get_get_v1),
         'loss_omegas': loss_omegas,
         'loss_v1s': loss_v1s,
@@ -128,14 +128,6 @@ n_runs, x_list, x_list_nm):
         'estimator_params': get_numeric_class_vars(est_class),
     }
     save_data(data, get_filepath(data['plottype']))
-    ####
-    '''avg_loss_omegas = np.mean(loss_omegas, axis=1)
-    avg_loss_v1s = np.mean(loss_v1s, axis=1)
-    plt.plot(x_list, avg_loss_omegas)
-    plt.plot(x_list, avg_loss_v1s)
-    plt.yscale('log')
-    plt.xscale('log')
-    plt.show()'''
 
 
 def main():
@@ -145,18 +137,29 @@ def main():
     omegas = np.linspace(omega_min, omega_max, 80)
     omega_prior = normalize(1. + 0.*omegas)
     
-    whichthing = 0
+    whichthing = 1
     
     if whichthing == 1:
-        def get_get_ts(nothing):
+        def get_get_ts(x):
             def get_ts():
-                return np.random.uniform(0., 4.*np.pi, 60)
+                return np.random.uniform(0., 4.*np.pi, 1200)
             return get_ts
         def get_get_v1(x):
             def get_v1(v1s, v1_prior):
                 return x
             return get_v1
-        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, v1s, 'v1_true')
+        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, [1e-6, 2e-6, 3e-6, 6e-6, 1e-5, 2e-5, 3e-5, 6e-5, 1e-4, 2e-4, 3e-4, 6e-4, 0.001], 'v1_true')
+    
+    if whichthing == 2:
+        def get_get_ts(x):
+            def get_ts():
+                return np.random.uniform(0., 4.*np.pi, x)
+            return get_ts
+        def get_get_v1(x):
+            def get_v1(v1s, v1_prior):
+                return sample_dist(v1s, v1_prior)
+            return get_v1
+        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, [3, 6, 10, 20, 30, 60, 100, 200, 300, 600], 'n_measurements')
     
     
     if whichthing == 0:

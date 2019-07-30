@@ -40,13 +40,12 @@ def perturb_omega(omega):
 
 
 # randomly sample from a distribution
-# values should be evenly spaced and in sorted order
+# values should be in sorted order
 # dist is a probability distribution on values
 def sample_dist(values, dist, size=None):
-    delta = values[1] - values[0]
-    epsilon = np.random.uniform(-delta / 2, delta / 2, size=size)
-    x = np.random.choice(values, p=dist, size=size)
-    return np.clip(x + epsilon, values[0], values[-1]) # <- this is a little bit hacky
+    i = 1 + np.random.choice(np.arange(0, len(values)), p=dist, size=size)
+    extvals = np.concatenate((values[0:1], values, values[-1:]))
+    return np.random.uniform((extvals[i-1] + extvals[i])/2, (extvals[i] + extvals[i+1])/2)
 
 
 # returns the number of excited states measured
@@ -294,11 +293,11 @@ def main():
         tlist = np.arange(0.1, 9., 0.3)
         def get_get_strat(t):
             def get_strat():
-                return [t] * 300
+                return [t] * 30
             return get_strat
 
         save_x_trace('measure_time', tlist, 'tlist',
-            omegas, prior, get_get_strat, estimators, estimator_names)
+            omegas, prior, get_get_strat, estimators, estimator_names, runs=100)
 
     
     elif whichthing == 2:

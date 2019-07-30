@@ -4,6 +4,7 @@ import math
 import numpy as np
 from qinfer import Distribution
 
+
 # constants
 SAVE_DIR = './data'
 
@@ -47,5 +48,19 @@ def get_numeric_class_vars(a_class):
 # deterministically sample n numbers (from 0 to p.size-1) with a probability distribution p
 def deterministic_sample(n, p):
     return np.clip(np.floor(np.cumsum(p) * n), 0, p.size-1).astype(int)
+
+
+# given two strings, find the substring that differs between them,
+#   return what this substring is for st1
+def diff(st1, st2):
+    if len(st1) == 0:
+        return ''
+    if len(st2) == 0:
+        return st1
+    if st1[0] == st2[0]:
+        return diff(st1[1:], st2[1:])
+    if st1[-1] == st2[-1]:
+        return diff(st1[:-1], st2[:-1])
+    return st1
 
 
