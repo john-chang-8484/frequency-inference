@@ -78,7 +78,7 @@ class KalmanSwarm(ParticleDist):
 def get_measurements(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1):
     ts = get_ts()
     
-    v1_true = get_v1(v1s, v1_prior)#sample_dist(v1s, v1_prior)
+    v1_true = get_v1(v1s, v1_prior)
     omega_list_true = sample_omega_list(omegas, omega_prior, v1_true, len(ts))
     ms = many_measure(omega_list_true, ts)
     
@@ -145,43 +145,43 @@ def main():
     omegas = np.linspace(omega_min, omega_max, 80)
     omega_prior = normalize(1. + 0.*omegas)
     
-    def get_get_ts(nothing):
+    whichthing = 0
+    
+    if whichthing == 1:
+        def get_get_ts(nothing):
+            def get_ts():
+                return np.random.uniform(0., 4.*np.pi, 60)
+            return get_ts
+        def get_get_v1(x):
+            def get_v1(v1s, v1_prior):
+                return x
+            return get_v1
+        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, v1s, 'v1_true')
+    
+    
+    if whichthing == 0:
         def get_ts():
-            return np.random.uniform(0., 4.*np.pi, 60)
-        return get_ts
-    
-    def get_get_v1(x):
-        def get_v1(v1s, v1_prior):
-            return x
-        return get_v1
-    
-    x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, v1s, 'v1_true')
-    '''
-    def get_ts():
-        return np.random.uniform(0., 4.*np.pi, n_ms)
-    
-    v1_true, omega_list_true, ts, ms = get_measurements(v1s, v1_prior, omegas,
-        omega_prior, get_ts, 10000)
-    
-    ####
-    
-    grid = GridDist(omegas, v1s, np.outer(omega_prior, v1_prior))
-    grid.many_update(ts, ms)
-    
-    ####
-    
-    print(grid.dist[grid.dist<-0.001])
-    print(grid.mean_omega(), omega_list_true[-1])
-    print(np.exp(grid.mean_log_v1()), v1_true)
-    
-    ####
-    
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    X, Y = np.meshgrid(log_v1s, omegas)
-    ax.plot_surface(X, Y, grid.dist, cmap=plt.get_cmap('copper'))
-    plt.show()
-    '''
+            return np.random.uniform(0., 4.*np.pi, 100)
+        def get_v1(v1s, prior):
+            return sample_dist(v1s, v1_prior)
+        
+        v1_true, omega_list_true, ts, ms = get_measurements(v1s, v1_prior, omegas,
+            omega_prior, get_ts, get_v1)
+        
+        grid = GridDist(omegas, v1s, np.outer(omega_prior, v1_prior))
+        grid.many_update(ts, ms)
+        
+        print(grid.dist[grid.dist<-0.001])
+        print(grid.mean_omega(), omega_list_true[-1])
+        print(np.exp(grid.mean_log_v1()), v1_true)
+        
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        X, Y = np.meshgrid(log_v1s, omegas)
+        ax.plot_surface(X, Y, grid.dist, cmap=plt.get_cmap('copper'))
+        plt.show()
+
+
 
 
 if __name__ == '__main__':
