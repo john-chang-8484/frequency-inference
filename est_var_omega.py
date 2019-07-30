@@ -142,13 +142,13 @@ def main():
     if whichthing == 1:
         def get_get_ts(x):
             def get_ts():
-                return np.random.uniform(0., 4.*np.pi, 1200)
+                return np.random.uniform(0., 4.*np.pi, 200)
             return get_ts
         def get_get_v1(x):
             def get_v1(v1s, v1_prior):
                 return x
             return get_v1
-        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, [1e-6, 2e-6, 3e-6, 6e-6, 1e-5, 2e-5, 3e-5, 6e-5, 1e-4, 2e-4, 3e-4, 6e-4, 0.001], 'v1_true')
+        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 500, [1e-6, 2e-6, 3e-6, 6e-6, 1e-5, 2e-5, 3e-5, 6e-5, 1e-4, 2e-4, 3e-4, 6e-4, 0.001], 'v1_true')
     
     if whichthing == 2:
         def get_get_ts(x):

@@ -19,12 +19,16 @@ class Trace:
         y = np.mean(self.loss_omegas, axis=1)
         u_y = np.std(self.loss_omegas, axis=1) / np.sqrt(self.loss_omegas.shape[1])
         plt.errorbar(self.x_list, y, yerr=u_y, capsize=2,
-            label=('omega_loss' + self.nm))
+            label=('omega_loss' + self.nm), color=self.colour1)
+        plt.plot(self.x_list, np.median(self.loss_omegas, axis=1),
+            linestyle='--', color=self.colour1)
     def plot_v1_loss(self):
         y = np.mean(self.loss_v1s, axis=1)
         u_y = np.std(self.loss_v1s, axis=1) / np.sqrt(self.loss_v1s.shape[1])
         plt.errorbar(self.x_list, y, yerr=u_y, capsize=2,
-            label=('v1_loss' + self.nm))
+            label=('v1_loss' + self.nm), color=self.colour2)
+        plt.plot(self.x_list, np.median(self.loss_v1s, axis=1),
+            linestyle='--', color=self.colour2)
 
 
 # mutates trace names to contain relevant hyperparam info
@@ -73,6 +77,10 @@ plotfns = {
 def main():
     options = argv[1]
     traces = [Trace(Bunch(load_data(filename))) for filename in argv[2:]]
+    colourmap = plt.get_cmap('jet')
+    for i, t in enumerate(traces):
+        t.colour1 = colourmap(i / len(traces))
+        t.colour2 = colourmap((2*i + 1) / (2*len(traces)))
     plottype = traces[0].plottype
     expand_names(traces)
     for t in traces:
