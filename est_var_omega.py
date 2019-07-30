@@ -54,6 +54,7 @@ class GridDist(ParticleDist):
         self.normalize()
 
 
+# TODO: this class is unfinished
 class KalmanSwarm(ParticleDist):
     def __init__(self, omegas, v1s, prior):
         assert omegas.shape + v1s.shape == prior.shape
@@ -71,24 +72,72 @@ class KalmanSwarm(ParticleDist):
         pass
 
 
-def get_measurements(v1s, v1_prior, omegas, omega_prior, get_ts, n_ms):
-    ts = get_ts(n_ms)
+def get_measurements(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1):
+    ts = get_ts()
     
-    v1_true = sample_dist(v1s, v1_prior)
-    omega_list_true = sample_omega_list(omegas, omega_prior, v1_true, n_ms)
+    v1_true = get_v1(v1s, v1_prior)#sample_dist(v1s, v1_prior)
+    omega_list_true = sample_omega_list(omegas, omega_prior, v1_true, len(ts))
     ms = many_measure(omega_list_true, ts)
     
     return v1_true, omega_list_true, ts, ms
 
 
+def do_run(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, mk_est):
+    estimator = mk_est(omegas, v1s, np.outer(omega_prior, v1_prior))
+    v1_true, omega_list_true, ts, ms = get_measurements(v1s, v1_prior, omegas,
+        omega_prior, get_ts, get_v1)
+    estimator.many_update(ts, ms)
+    loss_omega = (omega_list_true[-1] - estimator.mean_omega())**2 / v1_true    # normalize to get rid of scaling issues
+    loss_v1 = (v1_true - estimator.mean_v1())**2 / v1_true**2                   # normalize to get rid of scaling issues
+    return loss_omega, loss_v1
+
+
+def do_runs(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, mk_est, n_runs):
+    loss_omegas, loss_v1s = np.zeros(n_runs), np.zeros(n_runs)
+    for r in range(0, n_runs):
+        loss_omegas[r], loss_v1s[r] = do_run(v1s, v1_prior, omegas, omega_prior,
+            get_ts, get_v1, mk_est)
+    return loss_omegas, loss_v1s
+
+
+def x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, mk_est,
+n_runs, x_list):
+    loss_omegas = np.zeros((len(x_list), n_runs))
+    loss_v1s    = np.zeros((len(x_list), n_runs))
+    for i, x in enumerate(x_list):
+        print(i, '\t', x)
+        loss_omegas[i], loss_v1s[i] = do_runs(v1s, v1_prior, omegas,
+            omega_prior, get_get_ts(x), get_get_v1(x), mk_est, n_runs)
+    ####
+    avg_loss_omegas = np.mean(loss_omegas, axis=1)
+    avg_loss_v1s = np.mean(loss_v1s, axis=1)
+    plt.plot(x_list, avg_loss_omegas)
+    plt.plot(x_list, avg_loss_v1s)
+    plt.yscale('log')
+    plt.xscale('log')
+    plt.show()
+
+
 def main():
-    log_v1s = np.linspace(-12., -3., 33)
+    log_v1s = np.linspace(-12., -3., 63)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
-    omegas = np.linspace(omega_min, omega_max, 40)
+    omegas = np.linspace(omega_min, omega_max, 80)
     omega_prior = normalize(1. + 0.*omegas)
     
-    def get_ts(n_ms):
+    def get_get_ts(nothing):
+        def get_ts():
+            return np.random.uniform(0., 4.*np.pi, 60)
+        return get_ts
+    
+    def get_get_v1(x):
+        def get_v1(v1s, v1_prior):
+            return x
+        return get_v1
+    
+    x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, v1s)
+    '''
+    def get_ts():
         return np.random.uniform(0., 4.*np.pi, n_ms)
     
     v1_true, omega_list_true, ts, ms = get_measurements(v1s, v1_prior, omegas,
@@ -112,6 +161,7 @@ def main():
     X, Y = np.meshgrid(log_v1s, omegas)
     ax.plot_surface(X, Y, grid.dist, cmap=plt.get_cmap('copper'))
     plt.show()
+    '''
 
 
 if __name__ == '__main__':
