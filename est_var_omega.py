@@ -137,7 +137,7 @@ def main():
     omegas = np.linspace(omega_min, omega_max, 80)
     omega_prior = normalize(1. + 0.*omegas)
     
-    whichthing = 1
+    whichthing = 0
     
     if whichthing == 1:
         def get_get_ts(x):
@@ -181,7 +181,7 @@ def main():
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         X, Y = np.meshgrid(log_v1s, omegas)
-        ax.plot_surface(X, Y, grid.dist, cmap=plt.get_cmap('copper'))
+        ax.plot_surface(X, Y, grid.dist, cmap=plt.get_cmap('inferno'))
         plt.show()
 
 

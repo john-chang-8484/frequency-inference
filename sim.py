@@ -260,7 +260,7 @@ def main():
     estimators = [grid_mean, dynm_mean, qinfer_mean]
     estimator_names = ['grid_mean', 'dynm_mean', 'qinfer_mean']
     
-    whichthing = 1
+    whichthing = 4
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
