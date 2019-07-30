@@ -30,8 +30,8 @@ def get_filepath(graphnm):
 
 
 class Bunch(object):
-  def __init__(self, adict):
-    self.__dict__.update(adict)
+    def __init__(self, adict):
+        self.__dict__.update(adict)
 
 
 def get_numeric_class_vars(a_class):

@@ -25,15 +25,18 @@ class ParticleDist:
         self.dist = normalize(self.dist)
     def mean_omega(self):
         return np.sum(self.dist * self.omegas)
-    def mean_v1(self):
-        return np.sum(self.dist * self.v1s)
+    def mean_log_v1(self):
+        return np.sum(self.dist * np.log(self.v1s))
     def many_update(self, ts, ms):
         for t, m in zip(ts, ms):
             self.wait_u()
             self.update(t, m)
+    def get_name(self):
+        return self.name
 
 
 class GridDist(ParticleDist):
+    name = 'grid_dist'
     def __init__(self, omegas, v1s, prior):
         assert omegas.shape + v1s.shape == prior.shape
         self.shape = prior.shape
@@ -88,7 +91,7 @@ def do_run(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, mk_est):
         omega_prior, get_ts, get_v1)
     estimator.many_update(ts, ms)
     loss_omega = (omega_list_true[-1] - estimator.mean_omega())**2 / v1_true    # normalize to get rid of scaling issues
-    loss_v1 = (v1_true - estimator.mean_v1())**2 / v1_true**2                   # normalize to get rid of scaling issues
+    loss_v1 = (np.log(v1_true) - estimator.mean_log_v1())**2                    # log to get rid of scaling issues
     return loss_omega, loss_v1
 
 
@@ -100,22 +103,39 @@ def do_runs(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, mk_est, n_runs):
     return loss_omegas, loss_v1s
 
 
-def x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, mk_est,
-n_runs, x_list):
+def x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, est_class,
+n_runs, x_list, x_list_nm):
     loss_omegas = np.zeros((len(x_list), n_runs))
     loss_v1s    = np.zeros((len(x_list), n_runs))
     for i, x in enumerate(x_list):
         print(i, '\t', x)
         loss_omegas[i], loss_v1s[i] = do_runs(v1s, v1_prior, omegas,
-            omega_prior, get_get_ts(x), get_get_v1(x), mk_est, n_runs)
+            omega_prior, get_get_ts(x), get_get_v1(x), est_class, n_runs)
+    data = {
+        'omega_min': omega_min,
+        'omega_max': omega_max,
+        'v_0': v_0,
+        'omegas': omegas,
+        'omega_prior': omega_prior,
+        'x_list_nm': x_list_nm,
+        'x_list': x_list,
+        'estimator_name': est_class.name,
+        'get_get_strat': inspect.getsource(get_get_ts),
+        'get_get_v1': inspect.getsource(get_get_v1),
+        'loss_omegas': loss_omegas,
+        'loss_v1s': loss_v1s,
+        'plottype': 'est_var_omega_%s' % x_list_nm,
+        'estimator_params': get_numeric_class_vars(est_class),
+    }
+    save_data(data, get_filepath(data['plottype']))
     ####
-    avg_loss_omegas = np.mean(loss_omegas, axis=1)
+    '''avg_loss_omegas = np.mean(loss_omegas, axis=1)
     avg_loss_v1s = np.mean(loss_v1s, axis=1)
     plt.plot(x_list, avg_loss_omegas)
     plt.plot(x_list, avg_loss_v1s)
     plt.yscale('log')
     plt.xscale('log')
-    plt.show()
+    plt.show()'''
 
 
 def main():
@@ -135,7 +155,7 @@ def main():
             return x
         return get_v1
     
-    x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, v1s)
+    x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, v1s, 'v1_true')
     '''
     def get_ts():
         return np.random.uniform(0., 4.*np.pi, n_ms)
@@ -152,7 +172,7 @@ def main():
     
     print(grid.dist[grid.dist<-0.001])
     print(grid.mean_omega(), omega_list_true[-1])
-    print(grid.mean_v1(), v1_true)
+    print(np.exp(grid.mean_log_v1()), v1_true)
     
     ####
     
