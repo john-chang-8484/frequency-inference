@@ -14,9 +14,9 @@ from qinfer import SimplePrecessionModel, Distribution, LiuWestResampler
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.      # [1/s^2]   # the noise in omega (essentially a decoherence rate)
-var_omega = 0.001   # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.0001  # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
 
-NUM_PARTICLES = 100
+NUM_PARTICLES = 300
 
 
 
@@ -103,9 +103,9 @@ class GridDist(ParticleDist):
 
 
 class DynamicDist(ParticleDist):
-    gini_limit = 0.2
+    gini_limit = 50
     a = 0.1 # a fudge factor to prevent degeneracy
-    b = 1.0 # additional fudge factor for resampling
+    b = 1.2 # additional fudge factor for resampling
     def __init__(self, omegas, prior):
         self.omegas = omegas[deterministic_sample(self.size, prior)]
         self.dist = np.ones(self.size) / self.size
@@ -119,7 +119,7 @@ class DynamicDist(ParticleDist):
         self.normalize()
         new_cov = self.cov()
         self.target_cov *= max(self.a, new_cov / old_cov) # assume target covariance changes by same amount, add fudge factor to prevent degeneracy
-        if gini(self.dist) > self.gini_limit:
+        if gini(self.dist) > self.gini_limit / self.size:
             self.resample()
     def cov(self):
         return np.cov(self.omegas, ddof=0, aweights=self.dist)
@@ -130,7 +130,7 @@ class DynamicDist(ParticleDist):
         # adjust covariance
         cov_new = self.cov()
         if cov_new > self.target_cov:
-            pass#self.target_cov = cov_new # we ended up with more variance than expected, that's cool
+            self.target_cov = cov_new # we ended up with more variance than expected, that's cool
         else:
             add_var = self.b * (self.target_cov - cov_new)
             epsilon = ( np.random.exponential(scale=np.sqrt(add_var/2), size=self.size) -
@@ -162,7 +162,7 @@ class QinferDist(ParticleDist):
         self.qinfer_model = DiffusivePrecessionModel(min_freq=omega_min)
         self.qinfer_prior = PriorSample(omegas, prior)
         self.qinfer_updater = qinfer.SMCUpdater( self.qinfer_model, self.size,
-            self.qinfer_prior, resampler=LiuWestResampler(self.a, self.h) )
+            self.qinfer_prior, resampler=LiuWestResampler(self.a, self.h, debug=False) )
     def many_update(self, ts, ms):
         for t, m in zip(ts, ms):
             self.qinfer_updater.update(np.array([m]), np.array([t]))
@@ -278,7 +278,7 @@ def main():
     estimators = [grid_mean, dynm_mean, qinfer_mean]
     estimator_names = ['grid_mean', 'dynm_mean', 'qinfer_mean']
     
-    whichthing = 0
+    whichthing = 4
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
@@ -326,7 +326,7 @@ def main():
         pass
     
     elif whichthing == 4:
-        N_list = np.array([1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000, 3000, 6000, 10000])
+        N_list = np.array([100])#np.array([1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000])#, 3000, 6000, 10000])
         def get_get_strat(N):
             t_min = 0.
             t_max = 4. * np.pi
@@ -334,7 +334,7 @@ def main():
                 return np.random.uniform(t_min, t_max, N)
             return get_strat
         save_x_trace('measurement_performance', N_list, 'N_list',
-            omegas, prior, get_get_strat, estimators, estimator_names, runs=1000)
+            omegas, prior, get_get_strat, estimators, estimator_names, runs=4000)
     
     elif whichthing == 5:
         nlist = np.concatenate([np.arange(1, 10, 1), np.arange(10, 20, 2),
