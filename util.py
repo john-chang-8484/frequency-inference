@@ -47,7 +47,15 @@ def get_numeric_class_vars(a_class):
 
 # deterministically sample n numbers (from 0 to p.size-1) with a probability distribution p
 def deterministic_sample(n, p):
-    return np.clip(np.floor(np.cumsum(p) * n), 0, p.size-1).astype(int)
+    cdf = np.cumsum(p)
+    comparisons = np.linspace(1/(2*n), 1-1/(2*n), n)
+    ans = np.zeros(n, dtype=np.int64)
+    i = 0
+    for j in range(0, n):
+        while cdf[i] < comparisons[j]:
+            i += 1
+        ans[j] = i
+    return ans
 
 
 # given two strings, find the substring that differs between them,
@@ -62,5 +70,15 @@ def diff(st1, st2):
     if st1[-1] == st2[-1]:
         return diff(st1[:-1], st2[:-1])
     return st1
+
+
+# compute the Gini coefficient for a distribution
+def gini(dist):
+    tot = np.sum(dist) # dist may or may not be normalized
+    n = dist.size
+    sums = np.cumsum(np.sort(dist, axis=None)) / tot
+    diffs = np.linspace(1/n, 1., n) - sums
+    return 2 * np.sum(diffs) / (n - 1)
+
 
 

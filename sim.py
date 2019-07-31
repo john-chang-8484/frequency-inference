@@ -2,19 +2,19 @@ import numpy as np
 from random import randint, random
 from scipy.fftpack import dct, idct
 import matplotlib.pyplot as plt
-from util import save_data, get_filepath, gammaln, get_numeric_class_vars
+from util import save_data, get_filepath, deterministic_sample, get_numeric_class_vars, gini
 from plot_util import pin_plot
 import inspect
 import math
 import qinfer
-from qinfer import SimplePrecessionModel, Distribution
+from qinfer import SimplePrecessionModel, Distribution, LiuWestResampler
 
 
 # constants:
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.      # [1/s^2]   # the noise in omega (essentially a decoherence rate)
-var_omega = 0.0001  # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.001   # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
 
 NUM_PARTICLES = 100
 
@@ -36,7 +36,8 @@ def clip_omega(omegas):
 
 
 def perturb_omega(omega):
-    return clip_omega(omega + np.random.normal(0., np.sqrt(var_omega)))
+    omeg = np.array(omega)
+    return clip_omega(omeg + np.random.normal(0., np.sqrt(var_omega), size=omeg.shape))
 
 
 # randomly sample from a distribution
@@ -102,35 +103,39 @@ class GridDist(ParticleDist):
 
 
 class DynamicDist(ParticleDist):
-    prob_mass_limit = 0.525
-    a = 0.2
-    b = 4.2 # additional fudge factor for resampling
+    gini_limit = 0.2
+    a = 0.1 # a fudge factor to prevent degeneracy
+    b = 1.0 # additional fudge factor for resampling
     def __init__(self, omegas, prior):
-        self.omegas = np.random.choice(omegas, size=self.size, p=prior)
+        self.omegas = omegas[deterministic_sample(self.size, prior)]
         self.dist = np.ones(self.size) / self.size
-        self.probability_mass = 1. # fraction of probability mass remaining since last resampling
+        self.target_cov = self.cov() # initialize target covariance to actual covariance
     def wait_u(self):
         self.omegas = perturb_omega(self.omegas)
+        self.target_cov += var_omega
     def update(self, t, m):
+        old_cov = self.cov()
         self.dist *= get_likelihood(self.omegas, t, m)
-        self.probability_mass *= np.sum(self.dist)
         self.normalize()
-        if self.probability_mass < self.prob_mass_limit:
+        new_cov = self.cov()
+        self.target_cov *= max(self.a, new_cov / old_cov) # assume target covariance changes by same amount, add fudge factor to prevent degeneracy
+        if gini(self.dist) > self.gini_limit:
             self.resample()
     def cov(self):
         return np.cov(self.omegas, ddof=0, aweights=self.dist)
     def resample(self):
-        cov = self.cov()
-        self.omegas = np.random.choice(self.omegas, size=self.size, p=self.dist)
+        # resample
+        self.omegas = self.omegas[deterministic_sample(self.size, self.dist)]
         self.dist = np.ones(self.size) / self.size
+        # adjust covariance
         cov_new = self.cov()
-        delta_cov = max(0., cov - cov_new)
-        additional_var = (self.b * delta_cov) + (self.a * cov)
-        #epsilon = (self.a * cov + self.b * max(0., cov - cov_new)) * np.random.logistic(loc=0.0, scale = np.sqrt(3)/np.pi, size=self.size)
-        epsilon = ( np.random.exponential(scale=np.sqrt(additional_var/2), size=self.size) -
-            np.random.exponential(scale=np.sqrt(additional_var/2), size=self.size) )
-        self.omegas = clip_omega(self.omegas + epsilon)
-        self.probability_mass = 1.
+        if cov_new > self.target_cov:
+            pass#self.target_cov = cov_new # we ended up with more variance than expected, that's cool
+        else:
+            add_var = self.b * (self.target_cov - cov_new)
+            epsilon = ( np.random.exponential(scale=np.sqrt(add_var/2), size=self.size) -
+                        np.random.exponential(scale=np.sqrt(add_var/2), size=self.size) )
+            self.omegas = clip_omega(self.omegas + epsilon)
 
 
 # http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
@@ -149,6 +154,24 @@ class PriorSample(Distribution):
         return np.reshape(sample_dist(self.values, self.dist, size=n), (n, 1))
 
 
+# simple wrapper class for the qinfer implementation
+class QinferDist(ParticleDist):
+    a = 1.
+    h = 0.005
+    def __init__(self, omegas, prior):
+        self.qinfer_model = DiffusivePrecessionModel(min_freq=omega_min)
+        self.qinfer_prior = PriorSample(omegas, prior)
+        self.qinfer_updater = qinfer.SMCUpdater( self.qinfer_model, self.size,
+            self.qinfer_prior, resampler=LiuWestResampler(self.a, self.h) )
+    def many_update(self, ts, ms):
+        for t, m in zip(ts, ms):
+            self.qinfer_updater.update(np.array([m]), np.array([t]))
+    def mean(self):
+        return self.qinfer_updater.est_mean()
+    def posterior_marginal(self, *args, **kwargs):
+        return self.qinfer_updater.posterior_marginal(*args, **kwargs)
+
+
 ###############################################################################
 ##          Estimators for Omega:                                            ##
 
@@ -164,17 +187,11 @@ def dynm_mean(omegas, prior, ts, measurements):
     dist.many_update(ts, measurements)
     return dist.mean()
 
-# benchmark qinfer implementation
-qinfer_model = DiffusivePrecessionModel(min_freq=omega_min)
-# make a qinfer inductor, update it with all measurements
-def qinfer_make(omegas, prior, ts, measurements):
-    qinfer_prior = PriorSample(omegas, prior)
-    qinfer_updater = qinfer.SMCUpdater(qinfer_model, NUM_PARTICLES, qinfer_prior)
-    for t, m in zip(ts, measurements):
-        qinfer_updater.update(np.array([m]), np.array([t]))
-    return qinfer_updater
+
 def qinfer_mean(omegas, prior, ts, measurements):
-    return qinfer_make(omegas, prior, ts, measurements).est_mean()
+    dist = QinferDist(omegas, prior)
+    dist.many_update(ts, measurements)
+    return dist.mean()
 
 ##                                                                           ##
 ###############################################################################
@@ -248,6 +265,7 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
         'particle_params': get_numeric_class_vars(ParticleDist),
         'grid_params': get_numeric_class_vars(GridDist),
         'dynamic_params': get_numeric_class_vars(DynamicDist),
+        'qinfer_params': get_numeric_class_vars(QinferDist),
     }
     save_data(data, get_filepath(data['plottype']))
 
@@ -260,7 +278,7 @@ def main():
     estimators = [grid_mean, dynm_mean, qinfer_mean]
     estimator_names = ['grid_mean', 'dynm_mean', 'qinfer_mean']
     
-    whichthing = 4
+    whichthing = 0
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
@@ -270,18 +288,19 @@ def main():
         print(ms)
         grid = GridDist(omegas, prior)
         dynm = DynamicDist(omegas, prior)
+        qnfr = QinferDist(omegas, prior)
         grid.many_update(ts, ms)
         dynm.many_update(ts, ms)
-        qinfer_updater = qinfer_make(omegas, prior, ts, ms)
+        qnfr.many_update(ts, ms)
         
         pin_plot(dynm.omegas, dynm.dist)
         plt.plot(omegas, prior, label='prior')
         plt.plot(omegas, grid.dist, label='posterior')
         
-        qinfer_omegas, qinfer_post = qinfer_updater.posterior_marginal(res=25)
+        qinfer_omegas, qinfer_post = qnfr.posterior_marginal(res=25)
         plt.plot(qinfer_omegas, normalize(qinfer_post), label='qinfer posterior')
         
-        for dist, nm in [(grid, 'grid_mean'), (dynm, 'dynm_mean'), (qinfer_updater.est_mean(), 'qinfer_mean')]:
+        for dist, nm in [(grid, 'grid_mean'), (dynm, 'dynm_mean'), (qnfr, 'qinfer_mean')]:
             plt.plot([dist.mean()], prior[0], marker='o', label=nm)
         plt.plot(omega_list_true, np.linspace(0., prior[0], len(ts)),
             marker='*', markersize=10, label='true_omega', color=(0., 0., 0.))
