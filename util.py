@@ -73,12 +73,10 @@ def diff(st1, st2):
 
 
 # compute the Gini coefficient for a distribution
+# https://en.wikipedia.org/wiki/Gini_coefficient#Discrete_probability_distribution
 def gini(dist):
-    tot = np.sum(dist) # dist may or may not be normalized
-    n = dist.size
-    sums = np.cumsum(np.sort(dist, axis=None)) / tot
-    diffs = np.linspace(1/n, 1., n) - sums
-    return 2 * np.sum(diffs) / (n - 1)
+    S = np.cumsum(np.sort(dist, axis=None))
+    return 1. - (1 + 2. * np.sum(S[0:-1]) / S[-1]) / dist.size
 
 
 
