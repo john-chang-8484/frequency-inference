@@ -57,22 +57,23 @@ class GridDist(ParticleDist):
         self.normalize()
 
 
-# TODO: this class is unfinished
-class KalmanSwarm(ParticleDist):
-    def __init__(self, omegas, v1s, prior):
+class DynamicDist(ParticleDist):
+    name = 'dynamic_dist'
+    size = NUM_PARTICLES
+    def __init__(self, omegas, prior):
         assert omegas.shape + v1s.shape == prior.shape
-        self.shape = prior.shape
-        self.omegas = np.repeat(np.copy(omegas).reshape((omegas.size, 1)), v1s.size, axis=1).flatten()
-        self.v1s = np.repeat(np.copy(v1s).reshape((1, v1s.size)), omegas.size, axis=0).flatten()
-        self.dist = np.copy(prior).flatten()
-        self.omega_vars = np.ones_like(self.dist) * ((omegas[-1] - omegas[0]) / omegas.size)**2
-        self.v1_vars = np.ones_like(self.dist) * ((v1s[-1] - v1s[0]) / omegas.size)*s*2
-    def wait_u(self):
-        drift = np.random.normal(0., np.sqrt(self.v1s))
-        self.omegas += drift
-        self.omega_vars += self.v1s
-    def update(self, t, m):
-        pass
+        new_omegas = np.outer(omegas, np.ones(v1s.size)).flatten()
+        new_v1s = np.outer(np.ones(omegas.size), v1s).flatten()
+        
+        chosen_indices = deterministic_sample(self.size, prior.flatten())
+        self.omegas = new_omegas[chosen_indices]
+        self.v1s = new_v1s[chosen_indices]
+        self.dist = np.ones(self.size) / self.size
+        self.target_cov = self.cov() # initialize target covariance to actual covariance
+    def cov(self):
+        return np.cov(np.stack([self.omegas, self.v1s]), ddof=0, aweights=self.dist)
+    # TODO: nontrivial adaptation from other implementation here
+
 
 
 def get_measurements(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1):

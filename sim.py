@@ -16,7 +16,7 @@ omega_max = 1.9     # [1/s]
 v_0       = 0.      # [1/s^2]   # the noise in omega (essentially a decoherence rate)
 var_omega = 0.0000  # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
 
-NUM_PARTICLES = 400
+NUM_PARTICLES = 250
 
 
 
@@ -104,6 +104,7 @@ class GridDist(ParticleDist):
 
 class DynamicDist(ParticleDist):
     gini_limit = 50
+    n_ess_limit = 0.5
     a = 0.1 # a fudge factor to prevent degeneracy
     b = 1.2 # additional fudge factor for resampling
     def __init__(self, omegas, prior):
@@ -119,10 +120,13 @@ class DynamicDist(ParticleDist):
         self.normalize()
         new_cov = self.cov()
         self.target_cov *= max(self.a, new_cov / old_cov) # assume target covariance changes by same amount, add fudge factor to prevent degeneracy
-        if gini(self.dist) > self.gini_limit / self.size:
+        if self.n_ess() < self.n_ess_limit * self.size:
+        #if gini(self.dist) > self.gini_limit / self.size: # gini method (may be better? but seems like not)
             self.resample()
     def cov(self):
         return np.cov(self.omegas, ddof=0, aweights=self.dist)
+    def n_ess(self): # compute the effective sample size
+        return 1. / np.sum(self.dist**2)
     def resample(self):
         # resample
         self.omegas = self.omegas[deterministic_sample(self.size, self.dist)]
@@ -326,7 +330,7 @@ def main():
         pass
     
     elif whichthing == 4:
-        N_list = np.array([1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000])#, 3000, 6000, 10000])
+        N_list = np.array([1, 2, 3, 6, 10, 20, 30, 60, 100, 200])#, 300, 600, 1000, 2000, 3000, 6000, 10000])
         def get_get_strat(N):
             t_min = 0.
             t_max = 4. * np.pi
@@ -334,7 +338,7 @@ def main():
                 return np.random.uniform(t_min, t_max, N)
             return get_strat
         save_x_trace('measurement_performance', N_list, 'N_list',
-            omegas, prior, get_get_strat, estimators, estimator_names, runs=400)
+            omegas, prior, get_get_strat, estimators, estimator_names, runs=2000)
     
     elif whichthing == 5:
         nlist = np.concatenate([np.arange(1, 10, 1), np.arange(10, 20, 2),
