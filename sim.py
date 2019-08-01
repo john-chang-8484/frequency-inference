@@ -74,6 +74,7 @@ def log_likelihood(omega, t, m):
 class ParticleDist:
     size = NUM_PARTICLES
     search_depth = 32
+    max_t = 4. * np.pi
     def normalize(self):
         self.dist = normalize(self.dist)
     def mean(self):
@@ -103,6 +104,8 @@ class ParticleDist:
                 n += 1
             else:
                 m += 1
+            if max(self.tau_n(n), self.tau_m(m)) > self.max_t:
+                break
             curr_dist = abs(self.tau_n(n) - self.tau_m(m))
             if curr_dist < best_dist:
                 best_dist = curr_dist

@@ -79,4 +79,9 @@ def gini(dist):
     return 1. - (1 + 2. * np.sum(S[0:-1]) / S[-1]) / dist.size
 
 
+def idprn(x):
+    print(x)
+    return x
+
+
 

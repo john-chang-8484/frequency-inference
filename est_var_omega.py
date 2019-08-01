@@ -20,7 +20,7 @@ def sample_omega_list(omegas, prior, v1, length):
 
 
 # RULE: all fn calls should preserve normalization 
-class ParticleDist:
+class ParticleDist2D(ParticleDist):
     def normalize(self):
         self.dist = normalize(self.dist)
     def mean_omega(self):
@@ -29,13 +29,18 @@ class ParticleDist:
         return np.sum(self.dist * np.log(self.v1s))
     def many_update(self, ts, ms):
         for t, m in zip(ts, ms):
+            #print(t, m)
             self.wait_u()
             self.update(t, m)
     def get_name(self):
         return self.name
+    def sample(self, n):
+        ''' Take n samples of omega from this distribution. '''
+        return np.random.choice(self.omegas.flatten(), 
+            p=normalize(np.abs(np.sum(self.dist, axis=1))), size=n)
 
 
-class GridDist(ParticleDist):
+class GridDist(ParticleDist2D):
     name = 'grid_dist'
     def __init__(self, omegas, v1s, prior):
         assert omegas.shape + v1s.shape == prior.shape
@@ -57,7 +62,7 @@ class GridDist(ParticleDist):
         self.normalize()
 
 
-class DynamicDist(ParticleDist):
+class DynamicDist(ParticleDist2D):
     name = 'dynamic_dist'
     size = NUM_PARTICLES
     def __init__(self, omegas, v1s, prior):
@@ -76,25 +81,21 @@ class DynamicDist(ParticleDist):
 
 
 
-def get_measurements(omega_list, ts):
-    for omega, t in zip(omega_list, ts):
-        yield np.random.binomial(1, prob_excited(t, omega))
-
-
 def do_run(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, mk_est):
     estimator = mk_est(omegas, v1s, np.outer(omega_prior, v1_prior))
     ts, length = get_ts(estimator)
     
     v1_true = get_v1(v1s, v1_prior)
     omega_list_true = sample_omega_list(omegas, omega_prior, v1_true, length)
-    ms = get_measurements(omega_list_true, ts)
     
-    estimator.many_update(ts, ms)
+    for omega, t in zip(omega_list_true, ts):
+        estimator.many_update([t], [np.random.binomial(1, prob_excited(t, omega))])
+    
     return estimator, v1_true, omega_list_true
 
 
 def losses(estimator, v1_true, omega_list_true):
-    loss_omega = (omega_list_true[-1] - estimator.mean_omega())**2 / v1_true    # normalize to get rid of scaling issues
+    loss_omega = (omega_list_true[-1] - estimator.mean_omega())**2# / v1_true    # normalize to get rid of scaling issues
     loss_v1 = (np.log(v1_true) - estimator.mean_log_v1())**2                    # log to get rid of scaling issues
     return loss_omega, loss_v1
 
@@ -141,7 +142,7 @@ def main():
     omegas = np.linspace(omega_min, omega_max, 80)
     omega_prior = normalize(1. + 0.*omegas)
     
-    whichthing = 0
+    whichthing = 2
     
     if whichthing == 1:
         def get_get_ts(x):
@@ -150,34 +151,39 @@ def main():
                 return np.random.uniform(0., 4.*np.pi, l), l
             return get_ts
         def get_get_v1(x):
-            def get_v1(v1s, v1_prior):
+            def get_v1(v1s, prior):
                 return x
             return get_v1
         x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 500, [1e-6, 2e-6, 3e-6, 6e-6, 1e-5, 2e-5, 3e-5, 6e-5, 1e-4, 2e-4, 3e-4, 6e-4, 0.001], 'v1_true')
     
     if whichthing == 2:
+        # return (est.pick_t() for i in range(l)), l
         def get_get_ts(x):
             def get_ts(est):
                 l = x
                 return np.random.uniform(0., 4.*np.pi, l), l
             return get_ts
         def get_get_v1(x):
-            def get_v1(v1s, v1_prior):
-                return 0.0001
+            def get_v1(v1s, prior):
+                return 0.
             return get_v1
-        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, [3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000], 'n_measurements')
-    
+        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, [3, 6, 10, 20, 30, 60, 100, 200, 300, 1000, 3000], 'n_measurements')
+
     
     if whichthing == 0:
         def get_ts(est):
-            l = 2000
-            return np.random.uniform(0., 4.*np.pi, l), l
+            l = 70
+            return (np.random.uniform(0., 4.*np.pi) for i in range(l)), l
+        def get_ts(est):
+            l = 70
+            return (est.pick_t() for i in range(l)), l
         def get_v1(v1s, prior):
-            return sample_dist(v1s, v1_prior)
+            return 0.00001#sample_dist(v1s, v1_prior)
         
         #grid = GridDist(omegas, v1s, np.outer(omega_prior, v1_prior))
         grid, v1_true, omega_list_true = do_run(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, GridDist)
         #grid.many_update(ts, ms)
+        
         
         print(grid.dist[grid.dist<-0.001])
         print(grid.mean_omega(), omega_list_true[-1])
