@@ -60,7 +60,7 @@ class GridDist(ParticleDist):
 class DynamicDist(ParticleDist):
     name = 'dynamic_dist'
     size = NUM_PARTICLES
-    def __init__(self, omegas, prior):
+    def __init__(self, omegas, v1s, prior):
         assert omegas.shape + v1s.shape == prior.shape
         new_omegas = np.outer(omegas, np.ones(v1s.size)).flatten()
         new_v1s = np.outer(np.ones(omegas.size), v1s).flatten()
@@ -158,14 +158,14 @@ def main():
             return get_ts
         def get_get_v1(x):
             def get_v1(v1s, v1_prior):
-                return sample_dist(v1s, v1_prior)
+                return 0.0001
             return get_v1
-        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, [3, 6, 10, 20, 30, 60, 100, 200, 300, 600], 'n_measurements')
+        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, [3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000], 'n_measurements')
     
     
     if whichthing == 0:
         def get_ts():
-            return np.random.uniform(0., 4.*np.pi, 100)
+            return np.random.uniform(0., 4.*np.pi, 2000)
         def get_v1(v1s, prior):
             return sample_dist(v1s, v1_prior)
         
@@ -179,10 +179,16 @@ def main():
         print(grid.mean_omega(), omega_list_true[-1])
         print(np.exp(grid.mean_log_v1()), v1_true)
         
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        X, Y = np.meshgrid(log_v1s, omegas)
-        ax.plot_surface(X, Y, grid.dist, cmap=plt.get_cmap('inferno'))
+        if False:
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            X, Y = np.meshgrid(log_v1s, omegas)
+            ax.plot_surface(X, Y, grid.dist, cmap=plt.get_cmap('inferno'))
+        else:
+            plt.imshow(grid.dist, cmap=plt.get_cmap('inferno'),
+                interpolation='nearest', aspect='auto',
+                extent=[np.log(grid.v1s)[0, 0], np.log(grid.v1s)[0, -1],
+                        grid.omegas[0, 0], grid.omegas[-1, 0]] )
         plt.show()
 
 

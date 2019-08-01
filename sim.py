@@ -16,7 +16,7 @@ omega_max = 1.9     # [1/s]
 v_0       = 0.      # [1/s^2]   # the noise in omega (essentially a decoherence rate)
 var_omega = 0.0000  # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
 
-NUM_PARTICLES = 250
+NUM_PARTICLES = 600
 
 
 
@@ -73,6 +73,7 @@ def log_likelihood(omega, t, m):
 # RULE: all fn calls should preserve normalization 
 class ParticleDist:
     size = NUM_PARTICLES
+    search_depth = 32
     def normalize(self):
         self.dist = normalize(self.dist)
     def mean(self):
@@ -81,6 +82,32 @@ class ParticleDist:
         for t, m in zip(ts, ms):
             self.wait_u()
             self.update(t, m)
+    def sample(self, n):
+        ''' Take n samples from this distribution. '''
+        return np.random.choice(self.omegas, p=np.abs(self.dist), size=n)
+    def tau_n(self, n):
+        return np.pi * (2 * n + 1) / abs(self.omega1 - self.omega2)
+    def tau_m(self, m):
+        return np.pi * (2 * m + 1) / (self.omega1 + self.omega2)
+    def pick_t(self):
+        ''' choose a good t for the next experiment '''
+        while True:
+            self.omega1, self.omega2 = self.sample(2)
+            if self.omega1 != self.omega2:
+                break
+        n, m = 0, 0
+        best_pair = 0, 0
+        best_dist = abs(self.tau_n(n) - self.tau_m(m))
+        for i in range(self.search_depth):
+            if self.tau_n(n) < self.tau_m(m):
+                n += 1
+            else:
+                m += 1
+            curr_dist = abs(self.tau_n(n) - self.tau_m(m))
+            if curr_dist < best_dist:
+                best_dist = curr_dist
+                best_pair = n, m
+        return (self.tau_n(best_pair[0]) + self.tau_m(best_pair[1])) / 2
 
 
 class GridDist(ParticleDist):
@@ -282,7 +309,7 @@ def main():
     estimators = [grid_mean, dynm_mean, qinfer_mean]
     estimator_names = ['grid_mean', 'dynm_mean', 'qinfer_mean']
     
-    whichthing = 4
+    whichthing = 0
     
     if whichthing == 0:
         ts = np.random.uniform(0., 4.*np.pi, 300)
@@ -296,6 +323,12 @@ def main():
         grid.many_update(ts, ms)
         dynm.many_update(ts, ms)
         qnfr.many_update(ts, ms)
+        
+        new_ts = [grid.pick_t() for i in range(0, 6)]
+        print(new_ts)
+        omstars = np.linspace(0.1, 1.9, 10000)
+        for t in new_ts:
+            plt.plot(omstars, 5 * np.sin(t * omstars) / omegas.size)
         
         pin_plot(dynm.omegas, dynm.dist)
         plt.plot(omegas, prior, label='prior')
@@ -330,7 +363,7 @@ def main():
         pass
     
     elif whichthing == 4:
-        N_list = np.array([1, 2, 3, 6, 10, 20, 30, 60, 100, 200])#, 300, 600, 1000, 2000, 3000, 6000, 10000])
+        N_list = np.array([1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000, 3000, 6000, 10000, 30000, 100000])
         def get_get_strat(N):
             t_min = 0.
             t_max = 4. * np.pi
