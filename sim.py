@@ -255,7 +255,7 @@ def do_runs(omegas, prior, get_strat, estimators, runs=1000):
                     run_hist[r, i] = (omega_list[-1] - omega_est)**2
                 except RuntimeError:
                     no_exception_yet[i] = False
-                    run_hist[:, i] = np.nan
+                    run_hist[r:, i] = np.nan
     avg_loss = np.squeeze( np.sum(run_hist, axis=0) / runs )
     var_loss = np.squeeze( np.sum(run_hist**2, axis=0) / runs ) - avg_loss**2
     return run_hist, avg_loss, var_loss
