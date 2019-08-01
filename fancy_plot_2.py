@@ -89,12 +89,17 @@ def main():
         if options in ['v', 'b']:
             t.plot_v1_loss()
     if options == 'o':
-        plt.ylabel('omega loss $\\langle(\\hat\\Omega - \\Omega)^2/v_1\\rangle$')
+        plt.ylabel('omega loss $\\langle(\\hat\\Omega - \\Omega)^2\\rangle$')
     if options == 'v':
         plt.ylabel('v1 loss $\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle$')
     if options == 'b':
-        plt.ylabel('omega_loss = $\\langle(\\hat\\Omega - \\Omega)^2/v_1\\rangle$, v1_loss = $\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle$')
+        plt.ylabel('omega_loss = $\\langle(\\hat\\Omega - \\Omega)^2\\rangle$, v1_loss = $\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle$')
     plotfns[plottype]()
+    
+    # TODO: clean up the bounds plotting
+    b = traces[0]
+    plt.plot(b.x_list, np.array(b.x_list)*0 + ((b.omega_max - b.omega_min) / b.omegas.size)**2 / 12, label='grid bound')
+    
     plt.legend()
     plt.show()
 

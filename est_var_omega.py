@@ -95,7 +95,7 @@ def do_run(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, mk_est):
 
 
 def losses(estimator, v1_true, omega_list_true):
-    loss_omega = (omega_list_true[-1] - estimator.mean_omega())**2# / v1_true    # normalize to get rid of scaling issues
+    loss_omega = (omega_list_true[-1] - estimator.mean_omega())**2
     loss_v1 = (np.log(v1_true) - estimator.mean_log_v1())**2                    # log to get rid of scaling issues
     return loss_omega, loss_v1
 
@@ -136,10 +136,10 @@ est_class, n_runs, x_list, x_list_nm):
 
 
 def main():
-    log_v1s = np.linspace(-12., -3., 63)
+    log_v1s = np.linspace(-120., -3., 1)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
-    omegas = np.linspace(omega_min, omega_max, 80)
+    omegas = np.linspace(omega_min, omega_max, 580)
     omega_prior = normalize(1. + 0.*omegas)
     
     whichthing = 2
@@ -157,17 +157,17 @@ def main():
         x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 500, [1e-6, 2e-6, 3e-6, 6e-6, 1e-5, 2e-5, 3e-5, 6e-5, 1e-4, 2e-4, 3e-4, 6e-4, 0.001], 'v1_true')
     
     if whichthing == 2:
-        # return (est.pick_t() for i in range(l)), l
+        # return np.random.uniform(0., 4.*np.pi, l), l
         def get_get_ts(x):
             def get_ts(est):
                 l = x
-                return np.random.uniform(0., 4.*np.pi, l), l
+                return (est.pick_t() for i in range(l)), l
             return get_ts
         def get_get_v1(x):
             def get_v1(v1s, prior):
                 return 0.
             return get_v1
-        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 100, [3, 6, 10, 20, 30, 60, 100, 200, 300, 1000, 3000], 'n_measurements')
+        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 500, [3, 6, 10, 20, 30, 60, 100, 200, 300], 'n_measurements')
 
     
     if whichthing == 0:
@@ -194,11 +194,13 @@ def main():
             ax = fig.add_subplot(111, projection='3d')
             X, Y = np.meshgrid(log_v1s, omegas)
             ax.plot_surface(X, Y, grid.dist, cmap=plt.get_cmap('inferno'))
-        else:
+        elif False:
             plt.imshow(grid.dist, cmap=plt.get_cmap('inferno'),
                 interpolation='nearest', aspect='auto',
                 extent=[np.log(grid.v1s)[0, 0], np.log(grid.v1s)[0, -1],
                         grid.omegas[0, 0], grid.omegas[-1, 0]] )
+        else:
+            plt.plot(omegas, grid.dist.flatten())
         plt.show()
 
 

@@ -92,10 +92,12 @@ class ParticleDist:
         return np.pi * (2 * m + 1) / (self.omega1 + self.omega2)
     def pick_t(self):
         ''' choose a good t for the next experiment '''
-        while True:
-            self.omega1, self.omega2 = np.sort(self.sample(4))[np.array([0, -1])]
-            if self.omega1 != self.omega2:
-                break
+        if np.random.binomial(1, 0.2): # some chance of just picking t randomly
+            return np.random.uniform(0., self.max_t)
+        self.omega1, self.omega2 = np.sort(self.sample(16))[np.array([0, -1])]
+        stddev_omega = np.sqrt(max(np.sum(self.omegas**2 * self.dist) - np.sum(self.omegas * self.dist)**2, 1e-6))
+        while self.omega1 == self.omega2:
+            self.omega2 = clip_omega(self.omega1 + np.random.normal(0., 6. * stddev_omega))
         n, m = 0, 0
         best_pair = 0, 0
         best_dist = abs(self.tau_n(n) - self.tau_m(m))
