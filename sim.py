@@ -92,7 +92,7 @@ class ParticleDist:
     def pick_t(self):
         ''' choose a good t for the next experiment '''
         while True:
-            self.omega1, self.omega2 = self.sample(2)
+            self.omega1, self.omega2 = np.sort(self.sample(4))[np.array([0, -1])]
             if self.omega1 != self.omega2:
                 break
         n, m = 0, 0
