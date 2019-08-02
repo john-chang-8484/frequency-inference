@@ -74,7 +74,7 @@ def log_likelihood(omega, t, m):
 class ParticleDist:
     size = NUM_PARTICLES
     search_depth = 32
-    max_t = 8. * np.pi
+    max_t = 32. * np.pi
     def normalize(self):
         self.dist = normalize(self.dist)
     def mean(self):
@@ -92,7 +92,7 @@ class ParticleDist:
         return np.pi * (2 * m + 1) / (self.omega1 + self.omega2)
     def pick_t(self):
         ''' choose a good t for the next experiment '''
-        if np.random.binomial(1, 0.0): # some chance of just picking t randomly
+        if np.random.binomial(1, 0.2): # some chance of just picking t randomly
             return np.random.uniform(0., self.max_t)
         self.omega1, self.omega2 = np.sort(self.sample(16))[np.array([0, -1])]
         stddev_omega = np.sqrt(max(np.sum(self.omegas**2 * self.dist) - np.sum(self.omegas * self.dist)**2, 1e-6))
