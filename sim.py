@@ -74,7 +74,7 @@ def log_likelihood(omega, t, m):
 class ParticleDist:
     size = NUM_PARTICLES
     search_depth = 32
-    max_t = 4. * np.pi
+    max_t = 8. * np.pi
     def normalize(self):
         self.dist = normalize(self.dist)
     def mean(self):
@@ -92,12 +92,17 @@ class ParticleDist:
         return np.pi * (2 * m + 1) / (self.omega1 + self.omega2)
     def pick_t(self):
         ''' choose a good t for the next experiment '''
-        if np.random.binomial(1, 0.2): # some chance of just picking t randomly
+        if np.random.binomial(1, 0.0): # some chance of just picking t randomly
             return np.random.uniform(0., self.max_t)
         self.omega1, self.omega2 = np.sort(self.sample(16))[np.array([0, -1])]
         stddev_omega = np.sqrt(max(np.sum(self.omegas**2 * self.dist) - np.sum(self.omegas * self.dist)**2, 1e-6))
         while self.omega1 == self.omega2:
             self.omega2 = clip_omega(self.omega1 + np.random.normal(0., 6. * stddev_omega))
+        if self.tau_m(0) > self.max_t:
+            return self.max_t
+        if self.tau_n(0) > self.max_t:
+            return self.tau_m(np.floor(
+                (self.max_t * (self.omega1 + self.omega2) / np.pi - 1) / 2 ))
         n, m = 0, 0
         best_pair = 0, 0
         best_dist = abs(self.tau_n(n) - self.tau_m(m))
@@ -112,7 +117,10 @@ class ParticleDist:
             if curr_dist < best_dist:
                 best_dist = curr_dist
                 best_pair = n, m
-        return (self.tau_n(best_pair[0]) + self.tau_m(best_pair[1])) / 2
+        if self.tau_n(best_pair[0]) > self.max_t:
+            return self.tau_m(best_pair[1])
+        else:
+            return (self.tau_n(best_pair[0]) + self.tau_m(best_pair[1])) / 2
 
 
 class GridDist(ParticleDist):

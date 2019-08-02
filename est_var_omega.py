@@ -136,13 +136,13 @@ est_class, n_runs, x_list, x_list_nm):
 
 
 def main():
-    log_v1s = np.linspace(-120., -3., 1)
-    v1s = np.exp(log_v1s)
+    #log_v1s = np.linspace(-12., -3., 20)
+    v1s = np.array([0.])#np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
-    omegas = np.linspace(omega_min, omega_max, 580)
+    omegas = np.linspace(omega_min, omega_max, 2000)
     omega_prior = normalize(1. + 0.*omegas)
     
-    whichthing = 2
+    whichthing = 0
     
     if whichthing == 1:
         def get_get_ts(x):
@@ -157,7 +157,7 @@ def main():
         x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 500, [1e-6, 2e-6, 3e-6, 6e-6, 1e-5, 2e-5, 3e-5, 6e-5, 1e-4, 2e-4, 3e-4, 6e-4, 0.001], 'v1_true')
     
     if whichthing == 2:
-        # return np.random.uniform(0., 4.*np.pi, l), l
+        # return np.random.uniform(0., ParticleDist.max_t, l), l
         def get_get_ts(x):
             def get_ts(est):
                 l = x
@@ -167,23 +167,21 @@ def main():
             def get_v1(v1s, prior):
                 return 0.
             return get_v1
-        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 500, [3, 6, 10, 20, 30, 60, 100, 200, 300], 'n_measurements')
+        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist, 500, [3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000], 'n_measurements')
 
     
     if whichthing == 0:
+        tlist = []
         def get_ts(est):
-            l = 70
+            l = 200
             return (np.random.uniform(0., 4.*np.pi) for i in range(l)), l
         def get_ts(est):
-            l = 70
-            return (est.pick_t() for i in range(l)), l
+            l = 200
+            return ((lambda x: (x, tlist.append(x))[0])(est.pick_t()) for i in range(l)), l
         def get_v1(v1s, prior):
-            return 0.00001#sample_dist(v1s, v1_prior)
+            return 0.0#0001#sample_dist(v1s, v1_prior)
         
-        #grid = GridDist(omegas, v1s, np.outer(omega_prior, v1_prior))
         grid, v1_true, omega_list_true = do_run(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, GridDist)
-        #grid.many_update(ts, ms)
-        
         
         print(grid.dist[grid.dist<-0.001])
         print(grid.mean_omega(), omega_list_true[-1])
@@ -201,6 +199,8 @@ def main():
                         grid.omegas[0, 0], grid.omegas[-1, 0]] )
         else:
             plt.plot(omegas, grid.dist.flatten())
+        plt.show()
+        plt.plot(tlist)
         plt.show()
 
 
