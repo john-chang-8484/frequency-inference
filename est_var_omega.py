@@ -5,6 +5,8 @@ from mpl_toolkits.mplot3d import Axes3D
 
 from sim import *
 
+from qinfer import FiniteOutcomeModel
+
 
 
 def perturb_omega(omega, v1):
@@ -79,6 +81,78 @@ class DynamicDist2D(ParticleDist2D):
         return np.cov(np.stack([self.omegas, self.v1s]), ddof=0, aweights=self.dist)
     # TODO: nontrivial adaptation from other implementation here
 
+
+# http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
+# http://docs.qinfer.org/en/latest/guide/models.html
+class DiffusivePrecessionModel2D(FiniteOutcomeModel):
+    @property
+    def n_modelparams(self):
+        return 2
+    @property
+    def is_n_outcomes_constant(self):
+        return True
+    def n_outcomes(self, expparams):
+        return 2
+    def are_models_valid(self, modelparams):
+        return np.logical_and(modelparams[:,0] >= omega_min, modelparams[:,0] <= omega_max)
+    @property
+    def expparams_dtype(self):
+        return [('ts', 'float', 1)]
+    def likelihood(self, outcomes, modelparams, expparams):
+        super(DiffusivePrecessionModel2D, self).likelihood(outcomes, modelparams, expparams)
+        return get_likelihood(modelparams[:,0], expparams, outcomes).reshape(1, modelparams.shape[0], 1)
+    def update_timestep(self, modelparams, expparams):
+        assert expparams.shape[0] == 1
+        steps = np.random.normal(0., np.sqrt(modelparams[:,1]), 
+            size=modelparams.shape[0])
+        modelparams_new = np.copy(modelparams)
+        modelparams_new[:,0] = clip_omega(modelparams[:,0] + steps)
+        return modelparams_new.reshape(modelparams.shape + (1,))
+
+class PriorSample2D(Distribution):
+    n_rvs = 2
+    def __init__(self, omegas, v1s, dist):
+        self.omegas, self.v1s = np.meshgrid(omegas, v1s)
+        self.values = np.stack([self.omegas, self.v1s], axis=-1)
+        self.dist = dist
+    def sample(self, n=1):
+        sz = self.values.size // 2
+        cat0 = np.concatenate((self.values[0:1,:], self.values, self.values[-1:,:]), axis=0)
+        cat1 = np.concatenate((cat0[:,0:1], cat0, cat0[:,-1:]), axis=1)
+        choice = np.random.choice(sz, p=self.dist.flatten(), size=n)
+        ind0, ind1 = np.unravel_index(choice, self.dist.shape)
+        upper = (cat1[ind1 + 1, ind0 + 1] + cat1[ind1 + 2, ind0 + 2]) / 2
+        lower = (cat1[ind1 + 1, ind0 + 1] + cat1[ind1, ind0]) / 2
+        return np.random.uniform(lower, upper)
+
+# simple wrapper class for the qinfer implementation
+class QinferDist2D(ParticleDist2D):
+    a = 1.
+    h = 0.005
+    def __init__(self, omegas, v1s, prior):
+        self.qinfer_model = DiffusivePrecessionModel2D()
+        self.qinfer_prior = PriorSample2D(omegas, v1s, prior)
+        self.qinfer_updater = qinfer.SMCUpdater( self.qinfer_model, self.size,
+            self.qinfer_prior, resampler=LiuWestResampler(self.a, self.h, debug=False) )
+    def many_update(self, ts, ms):
+        for t, m in zip(ts, ms):
+            self.qinfer_updater.update(np.array([m]), np.array([t]))
+    def mean(self):
+        return self.qinfer_updater.est_mean()
+    def posterior_marginal(self, *args, **kwargs):
+        return self.qinfer_updater.posterior_marginal(*args, **kwargs)
+    def sample(self, n):
+        ''' Take n samples of omega from this distribution. '''
+        return self.qinfer_updater.particle_locations[np.random.choice(
+            self.qinfer_updater.particle_locations.shape[0],
+            p=self.qinfer_updater.particle_weights, size=n ), 0]
+    def stddev_omega(self):
+        return 1e-6
+
+
+##                                                                            ##
+################################################################################
+##                                                                            ##
 
 
 def do_run(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, mk_est):
@@ -182,27 +256,36 @@ def main():
         def get_v1(v1s, prior):
             return 0.0#0001#sample_dist(v1s, v1_prior)
         
-        grid, v1_true, omega_list_true = do_run(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, GridDist2D)
-        
-        print(grid.dist[grid.dist<-0.001])
-        print(grid.mean_omega(), omega_list_true[-1])
-        print(np.exp(grid.mean_log_v1()), v1_true)
-        
         if False:
-            fig = plt.figure()
-            ax = fig.add_subplot(111, projection='3d')
-            X, Y = np.meshgrid(log_v1s, omegas)
-            ax.plot_surface(X, Y, grid.dist, cmap=plt.get_cmap('inferno'))
-        elif False:
-            plt.imshow(grid.dist, cmap=plt.get_cmap('inferno'),
-                interpolation='nearest', aspect='auto',
-                extent=[np.log(grid.v1s)[0, 0], np.log(grid.v1s)[0, -1],
-                        grid.omegas[0, 0], grid.omegas[-1, 0]] )
+            grid, v1_true, omega_list_true = do_run(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, GridDist2D)
+            
+            print(grid.dist[grid.dist<-0.001])
+            print(grid.mean_omega(), omega_list_true[-1])
+            print(np.exp(grid.mean_log_v1()), v1_true)
+            
+            if False:
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection='3d')
+                X, Y = np.meshgrid(log_v1s, omegas)
+                ax.plot_surface(X, Y, grid.dist, cmap=plt.get_cmap('inferno'))
+            elif False:
+                plt.imshow(grid.dist, cmap=plt.get_cmap('inferno'),
+                    interpolation='nearest', aspect='auto',
+                    extent=[np.log(grid.v1s)[0, 0], np.log(grid.v1s)[0, -1],
+                            grid.omegas[0, 0], grid.omegas[-1, 0]] )
+            else:
+                plt.plot(omegas, grid.dist.flatten())
+            plt.show()
+            plt.plot(tlist)
+            plt.show()
         else:
-            plt.plot(omegas, grid.dist.flatten())
-        plt.show()
-        plt.plot(tlist)
-        plt.show()
+            qinfer, v1_true, omega_list_true = do_run(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, QinferDist2D)
+            print(omega_list_true[-1], v1_true)
+            print(qinfer.mean())
+            qinf_omegas, qinf_post = qinfer.posterior_marginal(idx_param=0, res=20)
+            plt.plot(qinf_omegas, qinf_post)
+            plt.show()
+            
 
 
 

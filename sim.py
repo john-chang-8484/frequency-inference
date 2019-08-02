@@ -14,7 +14,7 @@ from qinfer import SimplePrecessionModel, Distribution, LiuWestResampler
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.      # [1/s^2]   # the noise in omega (essentially a decoherence rate)
-var_omega = 0.0000  # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.001  # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
 
 NUM_PARTICLES = 600
 
@@ -90,12 +90,15 @@ class ParticleDist:
         return np.pi * (2 * n + 1) / abs(self.omega1 - self.omega2)
     def tau_m(self, m):
         return np.pi * (2 * m + 1) / (self.omega1 + self.omega2)
+    def stddev_omega(self):
+        return np.sqrt(max( 1e-6,
+            np.sum(self.omegas**2 * self.dist) - np.sum(self.omegas * self.dist)**2 ))
     def pick_t(self):
         ''' choose a good t for the next experiment '''
         if np.random.binomial(1, 0.2): # some chance of just picking t randomly
             return np.random.uniform(0., self.max_t)
         self.omega1, self.omega2 = np.sort(self.sample(16))[np.array([0, -1])]
-        stddev_omega = np.sqrt(max(np.sum(self.omegas**2 * self.dist) - np.sum(self.omegas * self.dist)**2, 1e-6))
+        stddev_omega = self.stddev_omega()
         while self.omega1 == self.omega2:
             self.omega2 = clip_omega(self.omega1 + np.random.normal(0., 6. * stddev_omega))
         if self.tau_m(0) > self.max_t:
@@ -185,8 +188,9 @@ class DynamicDist(ParticleDist):
 # http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
 class DiffusivePrecessionModel(SimplePrecessionModel):
     def update_timestep(self, modelparams, expparams):
+        assert expparams.shape[0] == 1
         steps = np.random.normal(0., np.sqrt(var_omega), 
-            size=(modelparams.shape[0], 1, expparams.shape[0]))
+            size=(modelparams.shape[0], 1, 1))
         return clip_omega(modelparams[:, :, np.newaxis] + steps)
 
 class PriorSample(Distribution):
@@ -317,7 +321,10 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
 
 def main():
     omegas = np.linspace(omega_min, omega_max, NUM_PARTICLES)
-    prior = normalize(1. + 0.*omegas)
+    prior = 0.*omegas#normalize(1. + 0.*omegas)
+    prior[0] = 100.
+    prior = normalize(prior)
+    print(prior)
     
     estimators = [grid_mean, dynm_mean, qinfer_mean]
     estimator_names = ['grid_mean', 'dynm_mean', 'qinfer_mean']
@@ -337,11 +344,11 @@ def main():
         dynm.many_update(ts, ms)
         qnfr.many_update(ts, ms)
         
-        new_ts = [grid.pick_t() for i in range(0, 6)]
+        '''new_ts = [grid.pick_t() for i in range(0, 6)]
         print(new_ts)
         omstars = np.linspace(0.1, 1.9, 10000)
         for t in new_ts:
-            plt.plot(omstars, 5 * np.sin(t * omstars) / omegas.size)
+            plt.plot(omstars, 5 * np.sin(t * omstars) / omegas.size)'''
         
         pin_plot(dynm.omegas, dynm.dist)
         plt.plot(omegas, prior, label='prior')
