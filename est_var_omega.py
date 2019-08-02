@@ -44,8 +44,10 @@ class ParticleDist2D(ParticleDist):
 
 class GridDist2D(ParticleDist2D):
     name = 'grid_dist'
+    size = None
     def __init__(self, omegas, v1s, prior):
         assert omegas.shape + v1s.shape == prior.shape
+        self.size = prior.size
         self.shape = prior.shape
         self.omegas = np.copy(omegas).reshape((omegas.size, 1))
         self.v1s = np.copy(v1s).reshape((1, v1s.size))
@@ -66,7 +68,7 @@ class GridDist2D(ParticleDist2D):
 
 class DynamicDist2D(ParticleDist2D):
     name = 'dynamic_dist'
-    size = NUM_PARTICLES
+    size = None
     def __init__(self, omegas, v1s, prior):
         assert omegas.shape + v1s.shape == prior.shape
         new_omegas = np.outer(omegas, np.ones(v1s.size)).flatten()
@@ -94,7 +96,10 @@ class DiffusivePrecessionModel2D(FiniteOutcomeModel):
     def n_outcomes(self, expparams):
         return 2
     def are_models_valid(self, modelparams):
-        return np.logical_and(modelparams[:,0] >= omega_min, modelparams[:,0] <= omega_max)
+        return np.logical_and(
+            modelparams[:,0] >= omega_min, 
+            modelparams[:,0] <= omega_max,
+            modelparams[:,1] >= 0. )
     @property
     def expparams_dtype(self):
         return [('ts', 'float', 1)]
@@ -103,9 +108,10 @@ class DiffusivePrecessionModel2D(FiniteOutcomeModel):
         return get_likelihood(modelparams[:,0], expparams, outcomes).reshape(1, modelparams.shape[0], 1)
     def update_timestep(self, modelparams, expparams):
         assert expparams.shape[0] == 1
-        steps = np.random.normal(0., np.sqrt(modelparams[:,1]), 
-            size=modelparams.shape[0])
         modelparams_new = np.copy(modelparams)
+        modelparams_new[:,1] = np.clip(modelparams[:,1], 0., np.inf)
+        steps = np.random.normal(0., np.sqrt(modelparams_new[:,1]), 
+            size=modelparams.shape[0])
         modelparams_new[:,0] = clip_omega(modelparams[:,0] + steps)
         return modelparams_new.reshape(modelparams.shape + (1,))
 
@@ -129,7 +135,9 @@ class PriorSample2D(Distribution):
 class QinferDist2D(ParticleDist2D):
     a = 1.
     h = 0.005
+    size = ...
     def __init__(self, omegas, v1s, prior):
+        self.size = prior.size
         self.qinfer_model = DiffusivePrecessionModel2D()
         self.qinfer_prior = PriorSample2D(omegas, v1s, prior)
         self.qinfer_updater = qinfer.SMCUpdater( self.qinfer_model, self.size,
@@ -210,9 +218,9 @@ est_class, n_runs, x_list, x_list_nm):
 
 
 def main():
-    #log_v1s = np.linspace(-12., -3., 20)
-    #v1s = np.exp(log_v1s)
-    v1s = np.array([0.])
+    log_v1s = np.linspace(-12., -8., 20)
+    v1s = np.exp(log_v1s)
+    #v1s = np.array([0.])
     v1_prior = normalize(1. + 0.*v1s)
     omegas = np.linspace(omega_min, omega_max, 2000)
     omega_prior = normalize(1. + 0.*omegas)
@@ -254,9 +262,9 @@ def main():
             l = 200
             return ((lambda x: (x, tlist.append(x))[0])(est.pick_t()) for i in range(l)), l
         def get_v1(v1s, prior):
-            return 0.0#0001#sample_dist(v1s, v1_prior)
+            return sample_dist(v1s, v1_prior)
         
-        if False:
+        if True:
             grid, v1_true, omega_list_true = do_run(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, GridDist2D)
             
             print(grid.dist[grid.dist<-0.001])
@@ -268,13 +276,13 @@ def main():
                 ax = fig.add_subplot(111, projection='3d')
                 X, Y = np.meshgrid(log_v1s, omegas)
                 ax.plot_surface(X, Y, grid.dist, cmap=plt.get_cmap('inferno'))
-            elif False:
+            elif True:
                 plt.imshow(grid.dist, cmap=plt.get_cmap('inferno'),
                     interpolation='nearest', aspect='auto',
                     extent=[np.log(grid.v1s)[0, 0], np.log(grid.v1s)[0, -1],
                             grid.omegas[0, 0], grid.omegas[-1, 0]] )
             else:
-                plt.plot(omegas, grid.dist.flatten())
+                plt.plot(omegas, grid.dist.flatten()) # works when v_1 has dimension 1 only
             plt.show()
             plt.plot(tlist)
             plt.show()
