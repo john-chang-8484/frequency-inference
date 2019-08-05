@@ -9,7 +9,7 @@ def main():
         random_seed(x, r)
         return sample_omega_list(omegas, prior, v1, x)
     
-    m_ms_list = [1, 2, 3, 6, 10]
+    m_ms_list = [1]
     
     # qinfer estimator
     def get_estimator(x, r, v1):

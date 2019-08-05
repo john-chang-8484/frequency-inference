@@ -76,8 +76,13 @@ plotfns = {
 # note: this version of the program does not have the property that all
 #   estimators see the same data
 def main():
-    options = argv[1]
-    traces = [Trace(Bunch(load_data(filename))) for filename in argv[2:]]
+    if argv[1] in ['o', 'v', 'b']:
+        options = argv[1]
+        filenames = argv[2:]
+    else:
+        options = 'o'
+        filenames = argv[1:]
+    traces = [Trace(Bunch(load_data(filename))) for filename in filenames]
     colourmap = plt.get_cmap('jet')
     for i, t in enumerate(traces):
         t.colour1 = colourmap(i / len(traces))

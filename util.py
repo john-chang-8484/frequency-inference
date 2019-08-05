@@ -1,6 +1,6 @@
 import pickle
 import datetime
-import math
+import math, random, string
 import numpy as np
 from qinfer import Distribution
 
@@ -25,8 +25,15 @@ def save_data(data, filename):
     print('File "%s" saved.' % filename)
 
 
+def randstr(n):
+    """ create a random string for file disambguation of files created
+        within 1s of each other. """
+    return ''.join(
+        random.SystemRandom().choice(string.ascii_uppercase)
+        for i in range(n) )
+
 def get_filepath(graphnm):
-    return '%s/%s_%s.p' % (SAVE_DIR, graphnm,
+    return '%s/%s_%s_%s.p' % (SAVE_DIR, graphnm, randstr(3),
         datetime.datetime.now().strftime('%S_%M_%H_%d_%m_%Y'))
 
 
