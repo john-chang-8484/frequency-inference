@@ -150,6 +150,46 @@ class DynamicDist1D(ParticleDist1D):
                 np.random.exponential(scale=np.sqrt(add_var/2), size=self.size))
             self.omegas = clip_omega(self.omegas + epsilon)
 
+# helper classes for QinferDist1D
+# http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
+class DiffusivePrecessionModel(SimplePrecessionModel):
+    def __init__(self, v1, **kwargs):
+        self.v1 = v1
+        super().__init__(**kwargs)
+    def update_timestep(self, modelparams, expparams):
+        assert expparams.shape[0] == 1
+        steps = np.random.normal(0., np.sqrt(self.v1), 
+            size=(modelparams.shape[0], 1, 1))
+        return clip_omega(modelparams[:, :, np.newaxis] + steps)
+class PriorSample(Distribution):
+    n_rvs = 1
+    def __init__(self, values, dist):
+        self.values = values
+        self.dist = dist
+    def sample(self, n=1):
+        return np.reshape(sample_dist(self.values, self.dist, size=n), (n, 1))
+# simple wrapper class for the qinfer implementation
+class QinferDist1D(ParticleDist1D):
+    a = 1.
+    h = 0.005
+    name = 'qinfer'
+    def __init__(self, omegas, prior, v1, size):
+        self.v1, self.size = v1, size
+        self.qinfer_model = DiffusivePrecessionModel(self.v1, min_freq=omega_min)
+        self.qinfer_prior = PriorSample(omegas, prior)
+        self.qinfer_updater = qinfer.SMCUpdater( self.qinfer_model, self.size,
+            self.qinfer_prior, resampler=LiuWestResampler(self.a, self.h, debug=False) )
+    def update(self, t, m):
+        self.qinfer_updater.update(np.array([m]), np.array([t]))
+    def mean_omega(self):
+        return self.qinfer_updater.est_mean()
+    def mean_v1(self):
+        return self.v1
+    def posterior_marginal(self, *args, **kwargs):
+        return self.qinfer_updater.posterior_marginal(*args, **kwargs)
+    def wait_u(self):
+        pass # happens automatically when we call update
+
 ##                                                                            ##
 ################################################################################
 ##                                                                            ##
@@ -260,6 +300,7 @@ class Simulator:
             'chooser_name': dummy_est.chooser.name,
             'get_v1': inspect.getsource(self.get_v1),
             'get_omega_list': inspect.getsource(self.get_omega_list),
+            'get_estimator': inspect.getsource(self.get_estimator),
             'loss_omegas': loss_omegas,
             'loss_v1s': loss_v1s,
             'plottype': 'x_trace_%s' % x_list_nm,
@@ -270,24 +311,5 @@ class Simulator:
 ##                                                                            ##
 ################################################################################
 
-
-def main():
-    omegas = np.linspace(omega_min, omega_max, 600)
-    prior = normalize(1. + 0.*omegas)
-    def get_v1(x, r):
-        return 0.00001
-    def get_omega_list(x, r, v1):
-        random_seed(x, r)
-        return sample_omega_list(omegas, prior, v1, x)
-    def get_estimator(x, r, v1):
-        return Estimator(GridDist1D(omegas, prior, v1), TwoPointChooser(32))
-    sim = Simulator(get_v1, get_omega_list, get_estimator)
-    data = sim.x_trace(500, [1, 2, 3, 6, 10], 'n_ms')
-    data['omegas'], data['prior'] = omegas, prior
-    save_data(data, get_filepath(data['plottype']))
-
-
-if __name__ == '__main__':
-    main()
 
 

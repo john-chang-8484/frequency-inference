@@ -100,6 +100,7 @@ def main():
     # TODO: clean up the bounds plotting
     b = traces[0]
     plt.plot(b.x_list, np.array(b.x_list)*0 + ((b.omega_max - b.omega_min) / b.omegas.size)**2 / 12, label='grid bound')
+
     
     plt.legend()
     plt.show()

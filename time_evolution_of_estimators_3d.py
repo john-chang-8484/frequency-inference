@@ -21,7 +21,7 @@ def main():
     
     dynm = DynamicDist(omegas, prior)
     grid = GridDist(omegas, prior)
-    qinfer_updater = qinfer.SMCUpdater(qinfer_model, NUM_PARTICLES, PriorSample(omegas, prior))
+    qinfer = QinferDist(omegas, prior)
     
     particle_lists = [np.copy(dynm.omegas)]
     weight_lists = [np.copy(dynm.dist)]
@@ -36,7 +36,8 @@ def main():
         grid.update(t, m)
         dynm.wait_u()
         dynm.update(t, m)
-        qinfer_updater.update(np.array([m]), np.array([t]))
+
+        qinfer.qinfer_updater.update(np.array([m]), np.array([t]))
         
         particle_lists.append(np.copy(dynm.omegas))
         weight_lists.append(np.copy(dynm.dist))
@@ -44,7 +45,7 @@ def main():
         
         grid_means.append(grid.mean())
         dynm_means.append(dynm.mean())
-        qinfer_means.append(qinfer_updater.est_mean())
+        qinfer_means.append(qinfer.mean())
     
     us = np.arange(0, len(posts))
     

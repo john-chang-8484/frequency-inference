@@ -1,81 +1,111 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from sys import argv
-from util import load_data, Bunch
+from util import load_data, Bunch, diff
 
 
-def plot_measure_time(b):
-    n_estimators = b.run_hists.shape[0]
-    colourmap = plt.get_cmap('jet')
-    colours = [colourmap(k) for k in np.linspace(0., 1., n_estimators)]
-    which_percentiles = np.array([])#25, 50, 75])
-    for i, run_hist, loss, nm in zip(range(n_estimators), b.run_hists, b.avg_losses, b.estimator_names):
-        plt.errorbar(b.tlist, loss, yerr=np.sqrt(b.avg_loss_vars[i])/np.sqrt(b.runs), capsize=2, label=nm, color=colours[i])
-        percentiles = np.percentile(run_hist, which_percentiles, axis=1)
-        plt.plot(b.tlist.reshape((1,) + b.tlist.shape).repeat(which_percentiles.size, 0), percentiles, marker='o', linestyle='None', color=colours[i], markersize=3)
-    #plt.ylim(bottom=0.0)
-    plt.plot(b.tlist, b.var_omega * (np.sqrt(1 + 4/(b.tlist**2*b.var_omega)) - 1) / 2, label='Cramer Rao bound') # Bayesian Cramer Rao Bound
-    plt.plot(b.tlist, b.tlist*0 + ((b.omega_max - b.omega_min) / b.NUM_PARTICLES)**2 / 12, label='grid bound')
-    plt.plot(b.tlist, b.tlist*0 + 3*b.var_omega, label='an estimated bound')
-    plt.yscale('log')
+hyperparams = ['omega_min', 'omega_max', 'v_0', 'dist_name', 'chooser_name', 'dist_params', 'chooser_params']
+differfns = ['get_v1', 'get_omega_list', 'get_estimator']
 
-def plot_measure_number(b):
-    for loss, var, nm in zip(b.avg_losses, b.avg_loss_vars, b.estimator_names):
-        plt.errorbar(b.nlist, loss, yerr=np.sqrt(var), capsize=2, label=nm)
-    #plt.ylim(bottom=0.0)
-    plt.yscale('log')
+
+# a line on a plot
+class Trace:
+    def __init__(self, b):
+        vars(self).update(vars(b))
+        self.nm = ''
+    def __str__(self):
+        return self.nm
+    def plot_omega_loss(self):
+        y = np.mean(self.loss_omegas, axis=1)
+        u_y = np.std(self.loss_omegas, axis=1) / np.sqrt(self.loss_omegas.shape[1])
+        plt.errorbar(self.x_list, y, yerr=u_y, capsize=2,
+            label=('omega_loss' + self.nm), color=self.colour1)
+        plt.plot(self.x_list, np.median(self.loss_omegas, axis=1),
+            linestyle='--', color=self.colour1)
+    def plot_v1_loss(self):
+        y = np.mean(self.loss_v1s, axis=1)
+        u_y = np.std(self.loss_v1s, axis=1) / np.sqrt(self.loss_v1s.shape[1])
+        plt.errorbar(self.x_list, y, yerr=u_y, capsize=2,
+            label=('v1_loss' + self.nm), color=self.colour2)
+        plt.plot(self.x_list, np.median(self.loss_v1s, axis=1),
+            linestyle='--', color=self.colour2)
+
+
+# mutates trace names to contain relevant hyperparam info
+def expand_names(traces):
+    for param in hyperparams:
+        differs = False # does this param differ for any traces we are looking at?
+        for i in range(1, len(traces)):
+            if vars(traces[i])[param] != vars(traces[i-1])[param]:
+                differs = True
+                break
+        if differs:
+            for t in traces:
+                t.nm += ', %s=%s' % (param, str(vars(t)[param]))
+    for param in differfns:
+        differs = False # does this param differ for any traces we are looking at?
+        for i in range(1, len(traces)):
+            if vars(traces[i])[param] != vars(traces[i-1])[param]:
+                differs = True
+                break
+        if differs:
+            for i in range(-1, len(traces)-1):
+                traces[i].nm += ', %s: %s' % (param, diff(
+                    vars(traces[i])[param].split('\n'),
+                    vars(traces[i+1])[param].split('\n') )[0].strip())
+
+
+def v1_true():
     plt.xscale('log')
-
-def plot_shot_number(b):
-    for loss, var, nm in zip(b.avg_losses, b.avg_loss_vars, b.estimator_names):
-        plt.errorbar(b.nshots_list, loss, yerr=np.sqrt(var), capsize=2, label=nm)
-    #plt.ylim(bottom=0.0)
     plt.yscale('log')
+    plt.xlabel('v1_true')
+
+def n_measurements():
     plt.xscale('log')
-
-def plot_t_theta_loss(b):
-    for loss, var, nm in zip(b.avg_losses, b.avg_loss_vars, b.t_estimator_names):
-        plt.errorbar(b.theta_list, loss, yerr=np.sqrt(var), capsize=2, label=nm)
-    #plt.ylim(bottom=0.0)
     plt.yscale('log')
+    plt.xlabel('n_measurements')
 
-def plot_measurement_performance(b):
-    n_estimators = b.run_hists.shape[0]
-    colourmap = plt.get_cmap('jet')
-    colours = [colourmap(k) for k in np.linspace(0., 1., n_estimators)]
-    which_percentiles = np.array([50])
-    for i, run_hist, loss, nm in zip(range(n_estimators), b.run_hists, b.avg_losses, b.estimator_names):
-        plt.errorbar(b.N_list, loss, yerr=np.sqrt(b.avg_loss_vars[i])/np.sqrt(b.runs), capsize=2, label=nm, color=colours[i])
-        percentiles = np.percentile(run_hist, which_percentiles, axis=1)
-        plt.plot(b.N_list.reshape((1,) + b.N_list.shape).repeat(which_percentiles.size, 0).T, percentiles.T, linestyle='--', color=colours[i])
-    plt.plot(b.N_list, b.N_list*0 + ((b.omega_max - b.omega_min) / b.NUM_PARTICLES)**2 / 12, label='grid bound')
-    plt.plot(b.N_list, b.N_list*0 + 3*b.var_omega, label='an estimated bound')
-    plt.yscale('log')
-    plt.xscale('log')
-    plt.xlabel('number of measurements')
-    plt.ylabel('loss (MSE)')
 
 plotfns = {
-    'measure_time': plot_measure_time,
-    'measure_number': plot_measure_number,
-    'shot_number': plot_shot_number,
-    't_theta_loss': plot_t_theta_loss,
-    'measurement_performance': plot_measurement_performance
+    'est_var_omega_v1_true': v1_true,
+    'est_var_omega_n_measurements': n_measurements,
+    'x_trace_n_ms': n_measurements,
 }
 
 
-def plot(data):
-    plotfns[data['plottype']](Bunch(data))
-
-
+# note: this version of the program does not have the property that all
+#   estimators see the same data
 def main():
-    for filename in argv[1:]:
-        plot(load_data(filename))
+    options = argv[1]
+    traces = [Trace(Bunch(load_data(filename))) for filename in argv[2:]]
+    colourmap = plt.get_cmap('jet')
+    for i, t in enumerate(traces):
+        t.colour1 = colourmap(i / len(traces))
+        t.colour2 = colourmap((2*i + 1) / (2*len(traces)))
+    plottype = traces[0].plottype
+    expand_names(traces)
+    for t in traces:
+        if options in ['o', 'b']:
+            t.plot_omega_loss()
+        if options in ['v', 'b']:
+            t.plot_v1_loss()
+    if options == 'o':
+        plt.ylabel('omega loss $\\langle(\\hat\\Omega - \\Omega)^2\\rangle$')
+    if options == 'v':
+        plt.ylabel('v1 loss $\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle$')
+    if options == 'b':
+        plt.ylabel('omega_loss = $\\langle(\\hat\\Omega - \\Omega)^2\\rangle$, v1_loss = $\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle$')
+    plotfns[plottype]()
+    
+    # TODO: clean up the bounds plotting
+    b = traces[0]
+    plt.plot(b.x_list, np.array(b.x_list)*0 + ((b.omega_max - b.omega_min) / b.omegas.size)**2 / 12, label='grid bound')
+
+    
     plt.legend()
     plt.show()
 
 
 if __name__ == '__main__':
     main()
-
 

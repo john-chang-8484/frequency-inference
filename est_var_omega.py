@@ -133,6 +133,7 @@ class PriorSample2D(Distribution):
 
 # simple wrapper class for the qinfer implementation
 class QinferDist2D(ParticleDist2D):
+    name = 'qinfer'
     a = 1.
     h = 0.005
     size = ...
@@ -145,8 +146,10 @@ class QinferDist2D(ParticleDist2D):
     def many_update(self, ts, ms):
         for t, m in zip(ts, ms):
             self.qinfer_updater.update(np.array([m]), np.array([t]))
-    def mean(self):
-        return self.qinfer_updater.est_mean()
+    def mean_omega(self):
+        return self.qinfer_updater.est_mean()[0]
+    def mean_log_v1(self): # TODO: this is completely wrong!!! fix it soon
+        return self.qinfer_updater.est_mean()[1]
     def posterior_marginal(self, *args, **kwargs):
         return self.qinfer_updater.posterior_marginal(*args, **kwargs)
     def sample(self, n):
@@ -222,10 +225,10 @@ def main():
     v1s = np.exp(log_v1s)
     #v1s = np.array([0.])
     v1_prior = normalize(1. + 0.*v1s)
-    omegas = np.linspace(omega_min, omega_max, 2000)
+    omegas = np.linspace(omega_min, omega_max, 400)
     omega_prior = normalize(1. + 0.*omegas)
     
-    whichthing = 2
+    whichthing = 0
     
     if whichthing == 1:
         def get_get_ts(x):
@@ -237,20 +240,20 @@ def main():
             def get_v1(v1s, prior):
                 return x
             return get_v1
-        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist2D, 500, [1e-6, 2e-6, 3e-6, 6e-6, 1e-5, 2e-5, 3e-5, 6e-5, 1e-4, 2e-4, 3e-4, 6e-4, 0.001], 'v1_true')
+        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, QinferDist2D, 500, [1e-6, 2e-6, 3e-6, 6e-6, 1e-5, 2e-5, 3e-5, 6e-5, 1e-4, 2e-4, 3e-4, 6e-4, 0.001], 'v1_true')
     
     if whichthing == 2:
-        # np.random.uniform(0., ParticleDist.max_t, l), l
+        # (est.pick_t() for i in range(l)), l
         def get_get_ts(x):
             def get_ts(est):
                 l = x
-                return (est.pick_t() for i in range(l)), l
+                return np.random.uniform(0., ParticleDist.max_t, l), l
             return get_ts
         def get_get_v1(x):
             def get_v1(v1s, prior):
-                return 0.
+                return np.exp(-10.)
             return get_v1
-        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist2D, 500, [3, 6, 10, 20, 30, 60, 100], 'n_measurements')
+        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, QinferDist2D, 500, [3, 6, 10, 20, 30, 60], 'n_measurements')
 
     
     if whichthing == 0:
@@ -285,6 +288,7 @@ def main():
                 plt.plot(omegas, grid.dist.flatten()) # works when v_1 has dimension 1 only
             plt.show()
             plt.plot(tlist)
+            plt.xlabel('time (in measurement numer)'); plt.ylabel('choice of t')
             plt.show()
         else:
             qinfer, v1_true, omega_list_true = do_run(v1s, v1_prior, omegas, omega_prior, get_ts, get_v1, QinferDist2D)
