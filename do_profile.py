@@ -1,4 +1,4 @@
-import sim
+import est_var_omega as prog
 import cProfile
-cProfile.run('sim.main()', 'sim_stats.stats')
+cProfile.run('prog.main()', 'sim_stats.stats')
 

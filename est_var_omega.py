@@ -225,7 +225,7 @@ def main():
     omegas = np.linspace(omega_min, omega_max, 2000)
     omega_prior = normalize(1. + 0.*omegas)
     
-    whichthing = 0
+    whichthing = 2
     
     if whichthing == 1:
         def get_get_ts(x):
@@ -250,7 +250,7 @@ def main():
             def get_v1(v1s, prior):
                 return 0.
             return get_v1
-        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist2D, 500, [3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000], 'n_measurements')
+        x_trace(v1s, v1_prior, omegas, omega_prior, get_get_ts, get_get_v1, GridDist2D, 500, [3, 6, 10, 20, 30, 60, 100], 'n_measurements')
 
     
     if whichthing == 0:
