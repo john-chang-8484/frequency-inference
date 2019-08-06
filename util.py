@@ -29,7 +29,7 @@ def randstr(n):
     """ create a random string for file disambguation of files created
         within 1s of each other. """
     return ''.join(
-        random.SystemRandom().choice(string.ascii_uppercase)
+        random.SystemRandom().choice(string.ascii_lowercase)
         for i in range(n) )
 
 def get_filepath(graphnm):
