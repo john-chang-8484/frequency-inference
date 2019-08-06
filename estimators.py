@@ -7,7 +7,7 @@ from plot_util import pin_plot
 import inspect
 import math
 import qinfer
-from qinfer import SimplePrecessionModel, Distribution, LiuWestResampler
+from qinfer import SimplePrecessionModel, Distribution, LiuWestResampler, FiniteOutcomeModel
 
 
 # constants:
@@ -18,7 +18,7 @@ t_max     = 4. * np.pi # [s]    # the maximum time at which we can make a measur
 
 
 ################################################################################
-##                                                                            ##
+##                            Basic Functions                                 ##
 
 def prob_excited(t, omega):
     """ probability of excitation at time t for a given value of omega """
@@ -68,7 +68,7 @@ def random_seed(x, run, randomizer=0):
 
 ##                                                                            ##
 ################################################################################
-##                                                                            ##
+##                           1D Distributions                                 ##
 
 class ParticleDist1D:
     """ Represents a probability distribution using weighted particles.
@@ -150,7 +150,7 @@ class DynamicDist1D(ParticleDist1D):
                 np.random.exponential(scale=np.sqrt(add_var/2), size=self.size))
             self.omegas = clip_omega(self.omegas + epsilon)
 
-# helper classes for QinferDist1D
+#   helper classes for QinferDist1D:
 # http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
 class DiffusivePrecessionModel(SimplePrecessionModel):
     def __init__(self, v1, **kwargs):
@@ -191,6 +191,125 @@ class QinferDist1D(ParticleDist1D):
         return self.qinfer_updater.posterior_marginal(*args, **kwargs)
     def wait_u(self):
         pass # happens automatically when we call update
+
+##                                                                            ##
+################################################################################
+##                           2D Distributions                                 ##
+
+class ParticleDist2D:
+    """ Represents a 2d probability dist using weighted particles
+        RULE: all fn calls should leave the dist normalized """
+    def normalize(self):
+        self.dist = normalize(self.dist)
+    def mean_omega(self):
+        return np.sum(self.dist * self.omegas)
+    def mean_log_v1(self):
+        return np.sum(self.dist * np.log(self.v1s))
+    def sample_omega(self, n):
+        """ Take n samples of omega from this distribution. """
+        return np.random.choice(self.omegas.flatten(), 
+            p=normalize(np.abs(np.sum(self.dist, axis=1))), size=n)
+
+class GridDist2D(ParticleDist2D):
+    """ evenly spaced grid """
+    name = 'grid_dist'
+    def __init__(self, omegas, v1s, prior):
+        assert omegas.shape + v1s.shape == prior.shape
+        self.size = prior.size
+        self.shape = prior.shape
+        self.omegas = np.copy(omegas).reshape((omegas.size, 1))
+        self.v1s = np.copy(v1s).reshape((1, v1s.size))
+        self.dist = np.copy(prior)
+    def wait_u(self):
+        """ given a posterior distribution for omega at time t,
+            we find the dist for omega at time t+u """
+        diff = self.omegas[-1] - self.omegas[0]
+        fact = ((self.v1s * np.pi**2) / (2. * diff**2))
+        cos_coeffs = dct(self.dist, axis=0) # switch to fourier space, in terms of cosines to get Neumann BC
+        n = np.outer(np.arange(self.shape[0]), np.ones(self.shape[1]))
+        cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
+        self.dist = idct(cos_coeffs, axis=0) / (2 * self.shape[0]) # switch back to the usual representation
+    def update(self, t, m):
+        self.dist *= likelihood(self.omegas, t, m)
+        self.normalize()
+
+#   helper classes for QinferDist2D:
+# http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
+# http://docs.qinfer.org/en/latest/guide/models.html
+class DiffusivePrecessionModel2D(FiniteOutcomeModel):
+    @property
+    def n_modelparams(self):
+        return 2
+    @property
+    def is_n_outcomes_constant(self):
+        return True
+    def n_outcomes(self, expparams):
+        return 2
+    def are_models_valid(self, modelparams):
+        return np.logical_and(
+            modelparams[:,0] >= omega_min, 
+            modelparams[:,0] <= omega_max,
+            modelparams[:,1] >= 0. )
+    @property
+    def expparams_dtype(self):
+        return [('ts', 'float', 1)]
+    def likelihood(self, outcomes, modelparams, expparams):
+        super(DiffusivePrecessionModel2D, self).likelihood(outcomes, modelparams, expparams)
+        return likelihood(modelparams[:,0], expparams, outcomes).reshape(1, modelparams.shape[0], 1)
+    def update_timestep(self, modelparams, expparams):
+        assert expparams.shape[0] == 1
+        modelparams_new = np.copy(modelparams)
+        modelparams_new[:,1] = np.clip(modelparams[:,1], 0., np.inf)
+        steps = np.random.normal(0., np.sqrt(modelparams_new[:,1]), 
+            size=modelparams.shape[0])
+        modelparams_new[:,0] = clip_omega(modelparams[:,0] + steps)
+        return modelparams_new.reshape(modelparams.shape + (1,))
+class PriorSample2D(Distribution):
+    n_rvs = 2
+    def __init__(self, omegas, v1s, dist):
+        self.omegas, self.v1s = np.meshgrid(omegas, v1s)
+        self.values = np.stack([self.omegas, self.v1s], axis=-1)
+        self.dist = dist
+    def sample(self, n=1):
+        """ fancy 2D distribution sampling
+            Essentially, this function takes the midpoints between the
+            grid points, then, if a grid point is selected, it samples
+            uniformly between the grid points on either side. """
+        sz = self.values.size // 2
+        cat0 = np.concatenate((self.values[0:1,:], self.values, self.values[-1:,:]), axis=0)
+        cat1 = np.concatenate((cat0[:,0:1], cat0, cat0[:,-1:]), axis=1)
+        choice = np.random.choice(sz, p=self.dist.flatten(), size=n)
+        ind0, ind1 = np.unravel_index(choice, self.dist.shape)
+        upper = (cat1[ind1 + 1, ind0 + 1] + cat1[ind1 + 2, ind0 + 2]) / 2
+        lower = (cat1[ind1 + 1, ind0 + 1] + cat1[ind1, ind0]) / 2
+        return np.random.uniform(lower, upper)
+# simple wrapper class for the qinfer implementation
+class QinferDist2D(ParticleDist2D):
+    name = 'qinfer'
+    a = 1.
+    h = 0.005
+    size = ...
+    def __init__(self, omegas, v1s, prior, size):
+        self.size = size
+        self.qinfer_model = DiffusivePrecessionModel2D()
+        self.qinfer_prior = PriorSample2D(omegas, v1s, prior)
+        self.qinfer_updater = qinfer.SMCUpdater( self.qinfer_model, self.size,
+            self.qinfer_prior, resampler=LiuWestResampler(self.a, self.h, debug=False) )
+    def update(self, t, m):
+        self.qinfer_updater.update(np.array([m]), np.array([t]))
+    def wait_u(self):
+        pass # automatically handled in update
+    def mean_omega(self):
+        return self.qinfer_updater.est_mean()[0]
+    def mean_log_v1(self): # TODO: this is completely wrong!!! fix it soon
+        return self.qinfer_updater.est_mean()[1]
+    def posterior_marginal(self, *args, **kwargs):
+        return self.qinfer_updater.posterior_marginal(*args, **kwargs)
+    def sample_omega(self, n):
+        """ Take n samples of omega from this distribution. """
+        return self.qinfer_updater.particle_locations[np.random.choice(
+            self.qinfer_updater.particle_locations.shape[0],
+            p=self.qinfer_updater.particle_weights, size=n ), 0]
 
 ##                                                                            ##
 ################################################################################
