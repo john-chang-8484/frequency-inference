@@ -67,15 +67,16 @@ def deterministic_sample(n, p):
 
 # given two strings, find the substring that differs between them,
 #   return what this substring is for st1
-def diff(st1, st2):
+#   pass [] as empty to perform this operation on lists instead
+def diff(st1, st2, empty=''):
     if len(st1) == 0:
-        return ''
+        return empty
     if len(st2) == 0:
         return st1
     if st1[0] == st2[0]:
-        return diff(st1[1:], st2[1:])
+        return diff(st1[1:], st2[1:], empty)
     if st1[-1] == st2[-1]:
-        return diff(st1[:-1], st2[:-1])
+        return diff(st1[:-1], st2[:-1], empty)
     return st1
 
 

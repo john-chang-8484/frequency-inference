@@ -31,6 +31,19 @@ class Trace:
             linestyle='--', color=self.colour2)
 
 
+def fnrep(fn):
+    """ return a representation of the source code of a function,
+        ignoring its signature """
+    return fn.split('\n')[1:]
+
+def fn_eq(frep1, frep2):
+    """ check for equality between 2 function representations """
+    for line1, line2 in zip(frep1, frep2):
+        if line1 != line2:
+            return False
+    return True
+    
+
 # mutates trace names to contain relevant hyperparam info
 def expand_names(traces):
     for param in hyperparams:
@@ -41,18 +54,22 @@ def expand_names(traces):
                 break
         if differs:
             for t in traces:
-                t.nm += ', %s=%s' % (param, str(vars(t)[param]))
+                t.nm += ', \n%s=%s' % (param, str(vars(t)[param]))
     for param in differfns:
         differs = False # does this param differ for any traces we are looking at?
         for i in range(1, len(traces)):
-            if vars(traces[i])[param] != vars(traces[i-1])[param]:
+            if not fn_eq(
+            fnrep(vars(traces[i])[param]),
+            fnrep(vars(traces[i-1])[param]) ):
                 differs = True
                 break
         if differs:
             for i in range(-1, len(traces)-1):
-                traces[i].nm += ', %s: %s' % (param, diff(
-                    vars(traces[i])[param].split('\n'),
-                    vars(traces[i+1])[param].split('\n') )[0].strip())
+                print(param, diff(fnrep(vars(traces[i])[param]), fnrep(vars(traces[i+1])[param]), []))
+                dlines = diff( fnrep(vars(traces[i])[param]),
+                               fnrep(vars(traces[i+1])[param]), [] )
+                dlines = [line.strip() for line in dlines] # remove tabs
+                traces[i].nm += ', \n%s: %s' % (param, '; '.join(dlines))
 
 
 def v1_true():
@@ -76,12 +93,18 @@ plotfns = {
 # note: this version of the program does not have the property that all
 #   estimators see the same data
 def main():
-    if argv[1] in ['o', 'v', 'b']:
-        options = argv[1]
-        filenames = argv[2:]
-    else:
-        options = 'o'
-        filenames = argv[1:]
+    # get filenames and options
+    options = set()
+    filenames = []
+    for arg in argv[1:]:
+        if len(arg) >= 2 and arg[0] == '-':
+            options.add(arg[1:])
+        else:
+            filenames.append(arg)
+    if not ('o' in options or 'v' in options):
+        options.add('o') # default is the distplay omega_loss
+    
+    # make traces
     traces = [Trace(Bunch(load_data(filename))) for filename in filenames]
     colourmap = plt.get_cmap('jet')
     for i, t in enumerate(traces):
@@ -89,25 +112,32 @@ def main():
         t.colour2 = colourmap((2*i + 1) / (2*len(traces)))
     plottype = traces[0].plottype
     expand_names(traces)
+    
+    # plot
     for t in traces:
-        if options in ['o', 'b']:
+        if 'o' in options:
             t.plot_omega_loss()
-        if options in ['v', 'b']:
+        if 'v' in options:
             t.plot_v1_loss()
-    if options == 'o':
-        plt.ylabel('omega loss $\\langle(\\hat\\Omega - \\Omega)^2\\rangle$')
-    if options == 'v':
-        plt.ylabel('v1 loss $\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle$')
-    if options == 'b':
+    
+    # label
+    if 'o' in options and 'v' in options:
         plt.ylabel('omega_loss = $\\langle(\\hat\\Omega - \\Omega)^2\\rangle$, v1_loss = $\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle$')
+    elif 'o' in options:
+        plt.ylabel('omega loss $\\langle(\\hat\\Omega - \\Omega)^2\\rangle$')
+    else:
+        plt.ylabel('v1 loss $\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle$')
+    
+    # customize based on type of plot
     plotfns[plottype]()
     
+    # plot theoretical bounds
     # TODO: clean up the bounds plotting
     b = traces[0]
     plt.plot(b.x_list, np.array(b.x_list)*0 + ((b.omega_max - b.omega_min) / b.omegas.size)**2 / 12, label='grid bound')
 
-    
-    plt.legend()
+    if 'l' in options:
+        plt.legend()
     plt.show()
 
 

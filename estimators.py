@@ -175,10 +175,12 @@ class QinferDist1D(ParticleDist1D):
     name = 'qinfer'
     def __init__(self, omegas, prior, v1, size):
         self.v1, self.size = v1, size
-        self.qinfer_model = DiffusivePrecessionModel(self.v1, min_freq=omega_min)
+        self.qinfer_model = DiffusivePrecessionModel(self.v1,
+            min_freq=omega_min)
         self.qinfer_prior = PriorSample(omegas, prior)
         self.qinfer_updater = qinfer.SMCUpdater( self.qinfer_model, self.size,
-            self.qinfer_prior, resampler=LiuWestResampler(self.a, self.h, debug=False) )
+            self.qinfer_prior,
+            resampler=LiuWestResampler(self.a, self.h, debug=False) )
     def update(self, t, m):
         self.qinfer_updater.update(np.array([m]), np.array([t]))
     def mean_omega(self):
