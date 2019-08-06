@@ -62,9 +62,9 @@ def likelihood(omega, t, m):
     return (pe * m) + (1 - pe) * (1 - m)
 
 def random_seed(x, run, randomizer=0):
-    seed = (randomizer * 10000000) + (x * 10000) + run
+    seed = hash((randomizer * 100000000000) + (x * 1000000) + run)
     random.seed(seed)
-    np.random.seed(seed)
+    np.random.seed(seed % 2**32)
 
 ##                                                                            ##
 ################################################################################
@@ -313,7 +313,7 @@ class QinferDist2D(ParticleDist2D):
 
 ##                                                                            ##
 ################################################################################
-##                                Choosers                                    ##
+##                              Choosers                                      ##
 
 class TimeChooser:
     """ class that chooses the time at which we should make a measurement,

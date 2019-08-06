@@ -85,6 +85,7 @@ plotfns = {
     'est_var_omega_v1_true': v1_true,
     'est_var_omega_n_measurements': n_measurements,
     'x_trace_n_ms': n_measurements,
+    'x_trace_v1_true': v1_true,
 }
 
 
