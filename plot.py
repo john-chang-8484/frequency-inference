@@ -42,7 +42,6 @@ def fn_eq(frep1, frep2):
         if line1 != line2:
             return False
     return True
-    
 
 # mutates trace names to contain relevant hyperparam info
 def expand_names(traces):
@@ -65,7 +64,6 @@ def expand_names(traces):
                 break
         if differs:
             for i in range(-1, len(traces)-1):
-                print(param, diff(fnrep(vars(traces[i])[param]), fnrep(vars(traces[i+1])[param]), []))
                 dlines = diff( fnrep(vars(traces[i])[param]),
                                fnrep(vars(traces[i+1])[param]), [] )
                 dlines = [line.strip() for line in dlines] # remove tabs

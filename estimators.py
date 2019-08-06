@@ -32,7 +32,7 @@ def clip_omega(omegas):
     return np.clip(omegas, omega_min, omega_max)
 
 def perturb_omega(omega, v1):
-    return clip_omega(omega + np.random.normal(0., np.sqrt(v1)))
+    return clip_omega(omega + np.sqrt(v1) * np.random.randn())
 
 def sample_dist(values, dist, size=None):
     """ Randomly samples from a distribution, interpolating between points.
@@ -313,7 +313,7 @@ class QinferDist2D(ParticleDist2D):
 
 ##                                                                            ##
 ################################################################################
-##                                                                            ##
+##                                Choosers                                    ##
 
 class TimeChooser:
     """ class that chooses the time at which we should make a measurement,
@@ -367,7 +367,7 @@ class TwoPointChooser(TimeChooser):
 
 ##                                                                            ##
 ################################################################################
-##                                                                            ##
+##                   Estimator and Simulator Classes                          ##
 
 class Estimator:
     """ An estimator is a combination of a distribution and a time chooser """
