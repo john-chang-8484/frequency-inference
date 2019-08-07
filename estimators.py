@@ -347,7 +347,7 @@ class DiffusivePrecessionModel2D(FiniteOutcomeModel):
 class PriorSample2D(Distribution):
     n_rvs = 2
     def __init__(self, omegas, v1s, dist):
-        self.v1s, self.omegas = np.meshgrid(v1s, omegas)
+        self.omegas, self.v1s = np.meshgrid(omegas, v1s)
         self.values = np.stack([self.omegas, self.v1s], axis=-1)
         self.dist = dist
     def sample(self, n=1):
