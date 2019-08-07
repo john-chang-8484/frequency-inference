@@ -110,7 +110,14 @@ def main():
         t.colour1 = colourmap(i / len(traces))
         t.colour2 = colourmap((2*i + 1) / (2*len(traces)))
     plottype = traces[0].plottype
-    expand_names(traces)
+    
+    if 'l' in options:
+        expand_names(traces)
+    if 'p' in options:
+        expand_names(traces)
+        for i, t in enumerate(traces):
+            print('Trace %d:' % i, t.nm)
+            t.nm = ', trace %d' % i
     
     # plot
     for t in traces:
@@ -135,7 +142,7 @@ def main():
     b = traces[0]
     plt.plot(b.x_list, np.array(b.x_list)*0 + ((b.omega_max - b.omega_min) / b.omegas.size)**2 / 12, label='grid bound')
 
-    if 'l' in options:
+    if 'l' in options or 'p' in options:
         plt.legend()
     plt.show()
 
