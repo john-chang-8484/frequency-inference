@@ -13,23 +13,27 @@ def main():
     prior = np.outer(omega_prior, v1_prior)
     
     v1 = 0.00000001 # [1/s^2/u] (u is the time between measurements)
-    omega_list = sample_omega_list(omegas, omega_prior, v1, 300)
-    #estimator = Estimator(GridDist2D(omegas, v1s, prior), TwoPointChooser(20))
-    estimator = Estimator(GridDist2D(omegas, v1s, prior), OptimizingChooser(10, 10))
-    estimator.many_measure(omega_list)
+    omega_list = sample_omega_list(omegas, omega_prior, v1, 3000)
+    grid = Estimator(GridDist2D(omegas, v1s, prior), RandomChooser())
+    dynm = Estimator(DynamicDist2D(omegas, v1s, prior, 150), RandomChooser())
     
-    print(estimator.dist.mean_omega(), omega_list[-1])
+    grid.many_measure(omega_list)
+    dynm.many_measure(omega_list)
+    
+    print(grid.dist.mean_omega(), dynm.dist.mean_omega(), omega_list[-1])
     
     fig = plt.figure()
     ax1 = plt.subplot(121)
     ax2 = plt.subplot(122, sharey=ax1)
     
     
-    ax2.imshow(estimator.dist.dist, cmap=plt.get_cmap('inferno'),
+    ax2.imshow(grid.dist.dist, cmap=plt.get_cmap('inferno'),
         interpolation='nearest', aspect='auto',
-        extent=[np.log(estimator.dist.v1s)[0, 0], np.log(estimator.dist.v1s)[0, -1],
-                estimator.dist.omegas[-1, 0], estimator.dist.omegas[1, 0]] )
+        extent=[np.log(grid.dist.v1s)[0, 0], np.log(grid.dist.v1s)[0, -1],
+                grid.dist.omegas[-1, 0], grid.dist.omegas[1, 0]] )
     ax2.plot([np.log(v1)], [omega_list[-1]], marker='o')
+    ax2.scatter(dynm.dist.vals[1], dynm.dist.vals[0], marker='o', color='g')
+    
     ax1.plot(np.arange(len(omega_list)), omega_list)
     ax1.plot(0.5 * len(omega_list) * omega_prior / np.max(omega_prior), omegas)
     ax1.set_ylabel('$\Omega$')

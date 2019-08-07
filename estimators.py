@@ -233,6 +233,67 @@ class GridDist2D(ParticleDist2D):
         self.dist *= likelihood(self.omegas, t, m)
         self.normalize()
 
+def covmax2d(cov1, cov2):
+    """ a helper function for DynamicDist2D, this function
+        takes the "maximum" of two 2d covariance matrices """
+    a1, b1, c1 = cov1[0,0], cov1[1,0], cov1[1, 1]
+    a2, b2, c2 = cov2[0,0], cov2[1,0], cov2[1, 1]
+    a = max(a1, a2)
+    c = max(c1, c2)
+    b = ((b1 / np.sqrt(a1*c1)) + (b2 / np.sqrt(a2*c2))) * a * c * np.sqrt(0.5)
+    return np.array([[a, b], [b, c]])
+class DynamicDist2D(ParticleDist2D, DynamicDist1D):
+    """ A 2d particle distribution that dynamically adapts the locations of
+        the particles in order to do inference with fewer particles than the
+        grid method, but to a finer resolution. """
+    name = 'dynamic_dist'
+    a = np.array([[0.2, 0.], [0., 0.2]])
+    b = 1.
+    def __init__(self, omegas, v1s, prior, size):
+        self.size = size
+        self.log_v1_min, self.log_v1_max = np.log(v1s[0]), np.log(v1s[-1])
+        omegas, log_v1s = np.meshgrid(omegas, np.log(v1s))
+        indices = np.random.choice(np.arange(prior.size), p=prior.flatten(), size=self.size)
+        selected_omegas = omegas.flatten()[indices]
+        selected_log_v1s = log_v1s.flatten()[indices]
+        self.vals = np.stack([selected_omegas, selected_log_v1s], axis=0)
+        self.dist = normalize(np.ones(self.size))
+        self.target_cov = self.cov()
+    def cov(self):
+        return np.cov(self.vals, ddof=0, aweights=self.dist)
+    def wait_u(self):
+        self.vals[0] += np.exp(self.vals[1]) * np.random.randn()
+        self.target_cov += np.array([[self.mean_v1(), 0.], [0., 0.]])
+    def update(self, t, m):
+        old_cov = self.cov()
+        self.dist *= likelihood(self.vals[0], t, m)
+        self.normalize()
+        new_cov = self.cov()
+        self.target_cov *= np.dot(new_cov, np.linalg.inv(old_cov))
+        if self.n_ess() < self.n_ess_limit * self.size:
+            self.resample() # resample only if necessary
+    def resample(self):
+        self.vals = self.vals[:, deterministic_sample(self.size, self.dist)]
+        self.dist = np.ones(self.size) / self.size
+        cov_new = self.cov()
+        self.target_cov = covmax2d(self.target_cov, cov_new)
+        # fudge factor b multiplies the amount of variance we add
+        add_var = self.b * (self.target_cov - cov_new)
+        # print(add_var) # TODO: sometimes we don't get a positive semidefinite matrix: fix this
+        epsilon = np.random.multivariate_normal(np.zeros(2), add_var, size=self.size).T
+        self.vals += epsilon
+        self.vals[0] = clip_omega(self.vals[0])
+        self.vals[1] = np.clip(self.vals[1], self.log_v1_min, self.log_v1_max)
+    def mean_omega(self):
+        return np.sum(self.vals[0] * self.dist)
+    def mean_v1(self):
+        return np.sum(np.exp(self.vals[1]) * self.dist)
+    def mean_log_v1(self):
+        return np.sum(self.vals[1] * self.dist)
+    def sample_omega(self, n):
+        return np.random.choice(self.vals[0], p=self.dist, size=n)
+        
+
 #   helper classes for QinferDist2D:
 # http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
 # http://docs.qinfer.org/en/latest/guide/models.html
