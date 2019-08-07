@@ -15,7 +15,7 @@ def main():
     v1 = 0.00000001 # [1/s^2/u] (u is the time between measurements)
     omega_list = sample_omega_list(omegas, omega_prior, v1, 3000)
     grid = Estimator(GridDist2D(omegas, v1s, prior), RandomChooser())
-    dynm = Estimator(DynamicDist2D(omegas, v1s, prior, 150), RandomChooser())
+    dynm = Estimator(DynamicDist2D(omegas, v1s, prior, 300), RandomChooser())
     
     grid.many_measure(omega_list)
     dynm.many_measure(omega_list)

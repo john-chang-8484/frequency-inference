@@ -32,7 +32,10 @@ def clip_omega(omegas):
     return np.clip(omegas, omega_min, omega_max)
 
 def perturb_omega(omega, v1):
-    return clip_omega(omega + np.sqrt(v1) * np.random.randn())
+    if hasattr(omega, 'size') and omega.shape != ():
+        return clip_omega(omega + np.sqrt(v1) * np.random.randn(omega.size))
+    else:
+        return clip_omega(omega + np.sqrt(v1) * np.random.randn())
 
 def sample_dist(values, dist, size=None):
     """ Randomly samples from a distribution, interpolating between points.
@@ -242,17 +245,27 @@ def covmax2d(cov1, cov2):
     c = max(c1, c2)
     b = ((b1 / np.sqrt(a1*c1)) + (b2 / np.sqrt(a2*c2))) * a * c * np.sqrt(0.5)
     return np.array([[a, b], [b, c]])
+def semidefify2d(cov):
+    """ make a covariance matrix positive semidefinite """
+    a, b, c = cov[0, 0], cov[1, 0], cov[1, 1]
+    a, c = max(a, 0), max(c, 0)
+    b = np.clip(b, -np.sqrt(a*c), np.sqrt(a*c))
+    return np.array([[a, b], [b, c]])
+def cov_ratios2d(cov1, cov2):
+    a1, b1, c1 = cov1[0,0], cov1[1,0], cov1[1, 1]
+    a2, b2, c2 = cov2[0,0], cov2[1,0], cov2[1, 1]
+    return np.array([a1/a2, b1/b2])
 class DynamicDist2D(ParticleDist2D, DynamicDist1D):
     """ A 2d particle distribution that dynamically adapts the locations of
         the particles in order to do inference with fewer particles than the
         grid method, but to a finer resolution. """
     name = 'dynamic_dist'
-    a = np.array([[0.2, 0.], [0., 0.2]])
+    a = np.array([[0.1, 0.], [0., 0.9]])
     b = 1.
     def __init__(self, omegas, v1s, prior, size):
         self.size = size
         self.log_v1_min, self.log_v1_max = np.log(v1s[0]), np.log(v1s[-1])
-        omegas, log_v1s = np.meshgrid(omegas, np.log(v1s))
+        log_v1s, omegas = np.meshgrid(np.log(v1s), omegas)
         indices = np.random.choice(np.arange(prior.size), p=prior.flatten(), size=self.size)
         selected_omegas = omegas.flatten()[indices]
         selected_log_v1s = log_v1s.flatten()[indices]
@@ -262,14 +275,20 @@ class DynamicDist2D(ParticleDist2D, DynamicDist1D):
     def cov(self):
         return np.cov(self.vals, ddof=0, aweights=self.dist)
     def wait_u(self):
-        self.vals[0] += np.exp(self.vals[1]) * np.random.randn()
+        self.vals[0] = perturb_omega(self.vals[0], np.exp(self.vals[1]))
         self.target_cov += np.array([[self.mean_v1(), 0.], [0., 0.]])
     def update(self, t, m):
         old_cov = self.cov()
         self.dist *= likelihood(self.vals[0], t, m)
         self.normalize()
         new_cov = self.cov()
-        self.target_cov *= np.dot(new_cov, np.linalg.inv(old_cov))
+        '''ratios = cov_ratios2d(new_cov, old_cov)
+        print('####################')
+        print(old_cov, new_cov)
+        print(self.target_cov, np.dot(new_cov, np.linalg.inv(old_cov)))
+        self.target_cov = np.dot(self.target_cov, np.dot(new_cov, np.linalg.inv(old_cov)))'''
+        #self.target_cov *= covmax2d(self.a, new_cov / old_cov) # max with fudge matrix
+        self.target_cov = semidefify2d(self.target_cov * new_cov / old_cov)
         if self.n_ess() < self.n_ess_limit * self.size:
             self.resample() # resample only if necessary
     def resample(self):
@@ -278,9 +297,9 @@ class DynamicDist2D(ParticleDist2D, DynamicDist1D):
         cov_new = self.cov()
         self.target_cov = covmax2d(self.target_cov, cov_new)
         # fudge factor b multiplies the amount of variance we add
-        add_var = self.b * (self.target_cov - cov_new)
-        # print(add_var) # TODO: sometimes we don't get a positive semidefinite matrix: fix this
+        add_var = self.b * semidefify2d((self.target_cov - cov_new))
         epsilon = np.random.multivariate_normal(np.zeros(2), add_var, size=self.size).T
+        epsilon[0] *= np.exp(self.vals[1]) / np.sum(np.exp(self.vals[1]))
         self.vals += epsilon
         self.vals[0] = clip_omega(self.vals[0])
         self.vals[1] = np.clip(self.vals[1], self.log_v1_min, self.log_v1_max)
@@ -328,7 +347,7 @@ class DiffusivePrecessionModel2D(FiniteOutcomeModel):
 class PriorSample2D(Distribution):
     n_rvs = 2
     def __init__(self, omegas, v1s, dist):
-        self.omegas, self.v1s = np.meshgrid(omegas, v1s)
+        self.v1s, self.omegas = np.meshgrid(v1s, omegas)
         self.values = np.stack([self.omegas, self.v1s], axis=-1)
         self.dist = dist
     def sample(self, n=1):
