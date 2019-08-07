@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 
 def main():
-    omegas = np.linspace(omega_min, omega_max, 3000)
+    omegas = np.linspace(omega_min, omega_max, 300)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
     omega_prior = normalize(np.exp(-160.*(omegas-1)**2)) # normal prior
     log_v1s = np.linspace(-20., -8., 20)
@@ -13,8 +13,9 @@ def main():
     prior = np.outer(omega_prior, v1_prior)
     
     v1 = 0.00000001 # [1/s^2/u] (u is the time between measurements)
-    omega_list = sample_omega_list(omegas, omega_prior, v1, 3000)
-    estimator = Estimator(GridDist2D(omegas, v1s, prior), TwoPointChooser(20))
+    omega_list = sample_omega_list(omegas, omega_prior, v1, 300)
+    #estimator = Estimator(GridDist2D(omegas, v1s, prior), TwoPointChooser(20))
+    estimator = Estimator(GridDist2D(omegas, v1s, prior), OptimizingChooser(10, 10))
     estimator.many_measure(omega_list)
     
     print(estimator.dist.mean_omega(), omega_list[-1])
