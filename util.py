@@ -92,4 +92,27 @@ def idprn(x):
     return x
 
 
+def all_start_with_tab(lines):
+    startchr = lines[0][0]
+    if startchr not in [' ', '\t']:
+        return False
+    for i in range(1, len(lines)):
+        if len(lines[i]) == 0 or lines[i][0] != startchr:
+            return False
+    return True
+def fn_from_source(s):
+    """ get a function from source s 
+        note: do NOT call this function on insecure data!! """
+    lines = [l for l in s.split('\n') if l != '']
+    while all_start_with_tab(lines):
+        lines = [line[1:] for line in lines]
+    end = 5 # def f_
+    while lines[0][end] not in [' ', '(']:
+        end += 1
+    f_list = []
+    lines[0] = 'def the_fn' + lines[0][end:]
+    exec('\n'.join(lines) + '\nf_list.append(the_fn)\n')
+    return f_list[0]
+
+
 

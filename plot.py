@@ -1,11 +1,16 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from sys import argv
-from util import load_data, Bunch, diff
+from util import load_data, Bunch, diff, fn_from_source
+
+
+# constants
+EST_BND_GAMMA = 0.75 # the gamma constant for the estimated bound
 
 
 hyperparams = ['omega_min', 'omega_max', 'v_0', 'dist_name', 'chooser_name', 'dist_params', 'chooser_params']
 differfns = ['get_v1', 'get_omega_list', 'get_estimator']
+
 
 
 # a line on a plot
@@ -138,10 +143,23 @@ def main():
     plotfns[plottype]()
     
     # plot theoretical bounds
-    # TODO: clean up the bounds plotting
-    b = traces[0]
     if 'o' in options:
-        plt.plot(b.x_list, np.array(b.x_list)*0 + ((b.omega_max - b.omega_min) / b.omegas.size)**2 / 12, label='grid bound')
+        if 'gb' in options:
+            for i, t in enumerate(traces):
+                if t.dist_name in ['grid', 'grid_dist']:
+                    plt.plot(t.x_list,
+                        np.array(t.x_list)*0 + ((t.omega_max - t.omega_min) / t.omegas.size)**2 / 12, 
+                        label='grid bound, trace %d' % i)
+        if 'eb' in options:
+            if plottype == 'x_trace_n_ms':
+                delta0 = np.sum(traces[0].omega_prior * traces[0].omegas**2) - np.sum(traces[0].omega_prior * traces[0].omegas)
+                bnd = (delta0 * np.power(EST_BND_GAMMA, traces[0].x_list) + 
+                    (fn_from_source(traces[0].get_v1)(0, 0) * EST_BND_GAMMA / (1 - EST_BND_GAMMA)))
+                plt.plot(traces[0].x_list, bnd, label='estimated bound')
+            elif plottype == 'x_trace_v1_true':
+                bnd = traces[0].x_list * EST_BND_GAMMA / (1 - EST_BND_GAMMA)
+                plt.plot(traces[0].x_list, bnd, label='estimated bound')
+                
 
     if 'l' in options or 'p' in options:
         plt.legend()
