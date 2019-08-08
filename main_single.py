@@ -15,13 +15,17 @@ def main():
     
     v1 = 0.00000001 # [1/s^2/u] (u is the time between measurements)
     omega_list = sample_omega_list(omegas, omega_prior, v1, 3000)
-    grid = Estimator(GridDist2D(omegas, v1s, prior), RandomChooser())
-    dynm = Estimator(DynamicDist2D(omegas, v1s, prior, num_particles), RandomChooser())
-    qinfer = Estimator(QinferDist2D(omegas, v1s, prior, num_particles), RandomChooser())
+    grid = Estimator(GridDist2D(omegas, v1s, prior), OptimizingChooser(10, 10))
+    dynm = Estimator(DynamicDist2D(omegas, v1s, prior, num_particles), OptimizingChooser(10, 10))
+    qinfer = Estimator(QinferDist2D(omegas, v1s, prior, num_particles), OptimizingChooser(10, 10))
     
-    grid.many_measure(omega_list)
-    dynm.many_measure(omega_list)
-    qinfer.many_measure(omega_list)
+    th_grid = grid.many_measure(omega_list)
+    th_dynm = dynm.many_measure(omega_list)
+    th_qinfer = qinfer.many_measure(omega_list)
+    
+    plt.plot(th_grid); plt.show()
+    plt.plot(th_dynm); plt.show()
+    plt.plot(th_qinfer); plt.show()
     
     print(grid.dist.mean_omega(), dynm.dist.mean_omega(), qinfer.dist.mean_omega())
     print('true: ', omega_list[-1])
