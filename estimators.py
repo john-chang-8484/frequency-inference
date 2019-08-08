@@ -215,7 +215,7 @@ class ParticleDist2D:
 
 class GridDist2D(ParticleDist2D):
     """ evenly spaced grid """
-    name = 'grid_dist'
+    name = 'grid'
     def __init__(self, omegas, v1s, prior):
         assert omegas.shape + v1s.shape == prior.shape
         self.size = prior.size
@@ -259,7 +259,7 @@ class DynamicDist2D(ParticleDist2D, DynamicDist1D):
     """ A 2d particle distribution that dynamically adapts the locations of
         the particles in order to do inference with fewer particles than the
         grid method, but to a finer resolution. """
-    name = 'dynamic_dist'
+    name = 'dynamic'
     a = np.array([[0.1, 0.], [0., 0.9]])
     b = 1.
     def __init__(self, omegas, v1s, prior, size):
