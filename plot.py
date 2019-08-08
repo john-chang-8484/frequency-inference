@@ -5,7 +5,8 @@ from util import load_data, Bunch, diff, fn_from_source
 
 
 # constants
-EST_BND_GAMMA = 0.75 # the gamma constant for the estimated bound
+EST_BND_GAMMA = 0.78 # the gamma constant for the estimated bound
+# (see compute_est_bnd_gamma.py)
 
 
 hyperparams = ['omega_min', 'omega_max', 'v_0', 'dist_name', 'chooser_name', 'dist_params', 'chooser_params']
