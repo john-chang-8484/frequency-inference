@@ -152,7 +152,7 @@ def main():
                         label='grid bound, trace %d' % i)
         if 'eb' in options:
             if plottype == 'x_trace_n_ms':
-                delta0 = np.sum(traces[0].omega_prior * traces[0].omegas**2) - np.sum(traces[0].omega_prior * traces[0].omegas)
+                delta0 = np.sum(traces[0].omega_prior * traces[0].omegas**2) - np.sum(traces[0].omega_prior * traces[0].omegas)**2
                 bnd = (delta0 * np.power(EST_BND_GAMMA, traces[0].x_list) + 
                     (fn_from_source(traces[0].get_v1)(0, 0) * EST_BND_GAMMA / (1 - EST_BND_GAMMA)))
                 plt.plot(traces[0].x_list, bnd, label='estimated bound')
