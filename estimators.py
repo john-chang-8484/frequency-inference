@@ -243,7 +243,7 @@ def covmax2d(cov1, cov2):
     a2, b2, c2 = cov2[0,0], cov2[1,0], cov2[1, 1]
     a = max(a1, a2)
     c = max(c1, c2)
-    b = ((b1 / np.sqrt(a1*c1)) + (b2 / np.sqrt(a2*c2))) * a * c * np.sqrt(0.5)
+    b = ((b1 / np.sqrt(a1*c1)) + (b2 / np.sqrt(a2*c2))) * np.sqrt(0.5 * a * c)
     return np.array([[a, b], [b, c]])
 def semidefify2d(cov):
     """ make a covariance matrix positive semidefinite """
@@ -299,6 +299,7 @@ class DynamicDist2D(ParticleDist2D, DynamicDist1D):
         # fudge factor b multiplies the amount of variance we add
         add_var = self.b * semidefify2d((self.target_cov - cov_new))
         epsilon = np.random.multivariate_normal(np.zeros(2), add_var, size=self.size).T
+        # hack to preserve the weird scaling properties here
         epsilon[0] *= np.exp(self.vals[1]) / np.sum(np.exp(self.vals[1]))
         self.vals += epsilon
         self.vals[0] = clip_omega(self.vals[0])
