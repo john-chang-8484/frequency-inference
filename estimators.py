@@ -68,6 +68,9 @@ def random_seed(x, run, randomizer=0):
     seed = hash((randomizer * 100000000000) + (x * 1000000) + run)
     random.seed(seed)
     np.random.seed(seed % 2**32)
+def random_reseed():
+    random.seed()
+    np.random.seed()
 
 ##                                                                            ##
 ################################################################################

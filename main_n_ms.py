@@ -11,13 +11,15 @@ def main():
     v1_prior = normalize(1. + 0.*v1s)
     prior = np.outer(omega_prior, v1_prior)
     
-    n_ms_list = [1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000]
+    n_ms_list = [10000]#[1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000]
     
     def get_v1(x, r):
         return 0.00000001
     def get_omega_list(x, r, v1):
         random_seed(x, r)
-        return sample_omega_list(omegas, omega_prior, v1, x)
+        ans = sample_omega_list(omegas, omega_prior, v1, x)
+        random_reseed()
+        return ans
     
     def get_estimator0(x, r, v1):
         return Estimator(DynamicDist2D(omegas, v1s, prior, prior.size), OptimizingChooser(10, 10))
@@ -40,7 +42,7 @@ def main():
     
     for get_est in [get_estimator6, get_estimator7, get_estimator8]:
         sim = Simulator(get_v1, get_omega_list, get_est)
-        data = sim.x_trace(500, n_ms_list, 'n_ms')
+        data = sim.x_trace(200, n_ms_list, 'n_ms')
         data['omegas'], data['omega_prior'] = omegas, omega_prior
         data['v1s'], data['v1_prior'] = v1s, v1_prior
         save_data(data, get_filepath(data['plottype']))
