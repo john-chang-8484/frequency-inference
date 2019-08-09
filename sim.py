@@ -14,16 +14,26 @@ from qinfer import SimplePrecessionModel, Distribution, LiuWestResampler
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
 v_0       = 0.      # [1/s^2]   # the noise in omega (essentially a decoherence rate)
-var_omega = 0.001  # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
+var_omega = 0.0  # [1/s^2/u] # the variance in omega per u, where u is the time between measurements
 
 NUM_PARTICLES = 600
 
+
+q_g1      = 0.043   # P(m=1 | g)
+q_g0      = 1-q_g1  # P(m=0 | g)
+q_e0      = 0.009   # P(m=0 | e)
+q_e1      = 1-q_e0  # P(m=1 | e)
 
 
 # probability of excitation at time t for a given value of omega
 def prob_excited(t, omega):
     return 0.5 * (1. - (np.exp(- 0.5 * v_0 * t) * np.cos(omega * t)))
 
+
+def get_likelihood(omega, t, m):
+    """ Returns likelihood, where m is the result of a measurement. """
+    pe = prob_excited(t, omega)
+    return pe*(m*q_e1 + (1 - m)*q_e0) + (1 - pe)*(m*q_g1 + (1 - m)*q_g0)
 
 # normalize a discrete probability distribution
 def normalize(dist):
@@ -57,11 +67,6 @@ def measure(omega, t):
 # assume spacing between measurements is large
 def many_measure(omega_list, ts):
     return np.array([measure(omega, t) for omega, t in zip(omega_list, ts)])
-
-
-def get_likelihood(omega, t, m):
-    pe = prob_excited(t, omega)
-    return (pe * m) + (1 - pe) * (1 - m)
 
 
 # gives the log-likelihood of a particular omega, given some measurement m
@@ -321,9 +326,7 @@ def save_x_trace(plottype, xlist, xlistnm, omegas, prior, get_get_strat, estimat
 
 def main():
     omegas = np.linspace(omega_min, omega_max, NUM_PARTICLES)
-    prior = 0.*omegas#normalize(1. + 0.*omegas)
-    prior[0] = 100.
-    prior = normalize(prior)
+    prior = normalize(1. + 0.*omegas)
     print(prior)
     
     estimators = [grid_mean, dynm_mean, qinfer_mean]
