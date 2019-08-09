@@ -150,7 +150,7 @@ def main():
                 if t.dist_name in ['grid', 'grid_dist']:
                     plt.plot(t.x_list,
                         np.array(t.x_list)*0 + ((t.omega_max - t.omega_min) / t.omegas.size)**2 / 12, 
-                        label='grid bound, trace %d' % i)
+                        label='grid bound, trace %d' % i, marker='*')
         if 'eb' in options:
             if plottype == 'x_trace_n_ms':
                 delta0 = np.sum(traces[0].omega_prior * traces[0].omegas**2) - np.sum(traces[0].omega_prior * traces[0].omegas)**2

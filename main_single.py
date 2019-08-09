@@ -8,14 +8,14 @@ def main():
     omegas = np.linspace(omega_min, omega_max, 300)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
     omega_prior = normalize(np.exp(-160.*(omegas-1)**2)) # normal prior
-    log_v1s = np.linspace(-20., -8., 20)
+    log_v1s = np.linspace(-20., -8., 5)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
     prior = np.outer(omega_prior, v1_prior)
     num_particles = prior.size
     
-    v1 = 0.00000001 # [1/s^2/u] (u is the time between measurements)
-    omega_list = sample_omega_list(omegas, omega_prior, v1, 10000)
+    v1 = v1s[0] # [1/s^2/u] (u is the time between measurements)
+    omega_list = sample_omega_list(omegas, omega_prior, v1, 1000)
     grid = Estimator(GridDist2D(omegas, v1s, prior), OptimizingChooser(10, 10))
     dynm = Estimator(DynamicDist2D(omegas, v1s, prior, num_particles), OptimizingChooser(10, 10))
     qinfer = Estimator(QinferDist2D(omegas, v1s, prior, num_particles), OptimizingChooser(10, 10))
@@ -36,11 +36,12 @@ def main():
     ax1 = plt.subplot(121)
     ax2 = plt.subplot(122, sharey=ax1)
     
-    
+    hlfd_omega = (grid.dist.omegas[1, 0] - grid.dist.omegas[0, 0]) / 2
+    hlfd_logv1 = (np.log(grid.dist.v1s[0, 1]) - np.log(grid.dist.v1s[0, 0])) / 2
     ax2.imshow(grid.dist.dist, cmap=plt.get_cmap('inferno'),
         interpolation='nearest', aspect='auto',
-        extent=[np.log(grid.dist.v1s)[0, 0], np.log(grid.dist.v1s)[0, -1],
-                grid.dist.omegas[-1, 0], grid.dist.omegas[1, 0]] )
+        extent=[np.log(grid.dist.v1s)[0, 0] - hlfd_logv1, np.log(grid.dist.v1s)[0, -1] + hlfd_logv1,
+                grid.dist.omegas[-1, 0] + hlfd_omega, grid.dist.omegas[0, 0] - hlfd_omega] )
     ax2.plot([np.log(v1)], [omega_list[-1]], marker='o')
     ax2.plot([grid.dist.mean_log_v1()], [grid.dist.mean_omega()], marker='*')
     #ax2.scatter(dynm.dist.vals[1], dynm.dist.vals[0], marker='o', color='g')

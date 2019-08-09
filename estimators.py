@@ -13,8 +13,12 @@ from qinfer import SimplePrecessionModel, Distribution, LiuWestResampler, Finite
 # constants:
 omega_min = 0.1     # [1/s]
 omega_max = 1.9     # [1/s]
-v_0       = 0.      # [1/s^2]   # the noise in omega (essentially a decoherence rate)
+v_0       = 1000.   # [1/s^2]   # the noise in omega (essentially a decoherence rate)
 t_max     = 4. * np.pi # [s]    # the maximum time at which we can make a measurement
+q_g1      = 0.043   # P(m=1 | g)
+q_g0      = 1-q_g1  # P(m=0 | g)
+q_e0      = 0.009   # P(m=0 | e)
+q_e1      = 1-q_e0  # P(m=1 | e)
 
 
 ################################################################################
@@ -22,7 +26,12 @@ t_max     = 4. * np.pi # [s]    # the maximum time at which we can make a measur
 
 def prob_excited(t, omega):
     """ probability of excitation at time t for a given value of omega """
-    return 0.5 * (1. - (np.exp(- 0.5 * v_0 * t) * np.cos(omega * t)))
+    return 1 - (1 - 0.5 * (1. - np.cos(omega * t))) * np.exp(- 0.5 * v_0 * t)
+
+def likelihood(omega, t, m):
+    """ Returns likelihood, where m is the result of a measurement. """
+    pe = prob_excited(t, omega)
+    return pe*(m*q_e1 + (1 - m)*q_e0) + (1 - pe)*(m*q_g1 + (1 - m)*q_g0)
 
 def normalize(dist):
     """ normalize a discrete probability distribution """
@@ -57,12 +66,7 @@ def sample_omega_list(omegas, prior, v1, length):
 
 def measure(omega, t):
     """ Measurement at time t. Returns 0 for ground state, 1 for excited. """
-    return np.random.binomial(1, prob_excited(t, omega))
-
-def likelihood(omega, t, m):
-    """ Returns likelihood, where m is the result of a measurement. """
-    pe = prob_excited(t, omega)
-    return (pe * m) + (1 - pe) * (1 - m)
+    return np.random.binomial(1, likelihood(omega, t, 1))
 
 def random_seed(x, run, randomizer=0):
     seed = hash((randomizer * 100000000000) + (x * 1000000) + run)
@@ -458,7 +462,7 @@ class OptimizingChooser(TimeChooser):
     def get_t(self, dist):
         omegas = dist.sample_omega(self.n_omegas).reshape(self.n_omegas, 1)
         ts = np.random.uniform(0., t_max, self.n_ts).reshape(1, self.n_ts)
-        pe = prob_excited(ts, omegas)
+        pe = likelihood(omegas, ts, 1)
         pg = 1 - pe
         mean_e = omegas * pe / np.sum(pe, axis = 0)
         mean_g = omegas * pg / np.sum(pg, axis = 0)
