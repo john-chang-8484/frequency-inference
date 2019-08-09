@@ -40,7 +40,7 @@ def main():
     def get_estimator8(x, r, v1):
         return Estimator(GridDist2D(omegas, v1s, prior), TwoPointChooser(10))
     
-    for get_est in [get_estimator6, get_estimator7, get_estimator8]:
+    for get_est in [get_estimator3, get_estimator4, get_estimator5]:
         sim = Simulator(get_v1, get_omega_list, get_est)
         data = sim.x_trace(200, n_ms_list, 'n_ms')
         data['omegas'], data['omega_prior'] = omegas, omega_prior

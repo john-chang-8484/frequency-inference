@@ -1,9 +1,10 @@
 from estimators import *
 import matplotlib.pyplot as plt
-
+from sys import argv
 
 
 def main():
+    np.random.seed(int(argv[1]))
     omegas = np.linspace(omega_min, omega_max, 300)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
     omega_prior = normalize(np.exp(-160.*(omegas-1)**2)) # normal prior
@@ -29,6 +30,7 @@ def main():
     
     print(grid.dist.mean_omega(), dynm.dist.mean_omega(), qinfer.dist.mean_omega())
     print('true: ', omega_list[-1])
+    print('loss: ', (grid.dist.mean_omega() - omega_list[-1])**2)
     
     fig = plt.figure()
     ax1 = plt.subplot(121)
@@ -40,6 +42,7 @@ def main():
         extent=[np.log(grid.dist.v1s)[0, 0], np.log(grid.dist.v1s)[0, -1],
                 grid.dist.omegas[-1, 0], grid.dist.omegas[1, 0]] )
     ax2.plot([np.log(v1)], [omega_list[-1]], marker='o')
+    ax2.plot([grid.dist.mean_log_v1()], [grid.dist.mean_omega()], marker='*')
     #ax2.scatter(dynm.dist.vals[1], dynm.dist.vals[0], marker='o', color='g')
     q_v1s, q_omegas, q_dist = qinfer.dist.qinfer_updater.posterior_mesh(1, 0, res1=100, res2=100, smoothing=0.02)
     #ax2.contour(np.log(q_v1s), q_omegas, q_dist, color='r')

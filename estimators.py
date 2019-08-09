@@ -107,7 +107,8 @@ class GridDist1D(ParticleDist1D):
         cos_coeffs = dct(self.dist) # switch to fourier space. (in terms of cosines to get Neumann BC)
         n = np.arange(cos_coeffs.size)
         cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
-        self.dist = idct(cos_coeffs) / (2 * cos_coeffs.size) # switch back to the usual representation
+        self.dist = np.abs(idct(cos_coeffs) / (2 * cos_coeffs.size)) # switch back to the usual representation
+        self.normalize()
     def update(self, t, m):
         self.dist *= likelihood(self.omegas, t, m)
         self.normalize()
@@ -234,7 +235,8 @@ class GridDist2D(ParticleDist2D):
         cos_coeffs = dct(self.dist, axis=0) # switch to fourier space, in terms of cosines to get Neumann BC
         n = np.outer(np.arange(self.shape[0]), np.ones(self.shape[1]))
         cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
-        self.dist = idct(cos_coeffs, axis=0) / (2 * self.shape[0]) # switch back to the usual representation
+        self.dist = np.abs(idct(cos_coeffs, axis=0) / (2 * self.shape[0])) # switch back to the usual representation
+        self.normalize()
     def update(self, t, m):
         self.dist *= likelihood(self.omegas, t, m)
         self.normalize()
