@@ -5,16 +5,16 @@ from estimators import *
 def main():
     omegas = np.linspace(omega_min, omega_max, 300)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
-    omega_prior = normalize(np.exp(-16.*(omegas-1)**2)) # normal prior
-    log_v1s = np.linspace(-20., -8., 20)
+    omega_prior = normalize(np.exp(-1e-7 * (omegas-140000)**2)) # normal prior
+    log_v1s = np.linspace(5., 15., 20)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
     prior = np.outer(omega_prior, v1_prior)
     
-    n_ms_list = [10000]#[1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000]
+    n_ms_list = [1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000]
     
     def get_v1(x, r):
-        return 0.00000001
+        return v1s[0]
     def get_omega_list(x, r, v1):
         random_seed(x, r)
         ans = sample_omega_list(omegas, omega_prior, v1, x)
