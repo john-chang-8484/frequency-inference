@@ -8,14 +8,14 @@ def main():
     omegas = np.linspace(omega_min, omega_max, 300)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
     omega_prior = normalize(np.exp(-1e-7 * (omegas-140000)**2)) # normal prior
-    log_v1s = np.linspace(5., 15., 20)
+    log_v1s = np.linspace(0., 20., 20)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
     prior = np.outer(omega_prior, v1_prior)
     num_particles = prior.size
     
-    v1 = v1s[0] # [1/s^2/u] (u is the time between measurements)
-    omega_list = sample_omega_list(omegas, omega_prior, v1, 2000)
+    v1 = 2000#v1s[0] # [1/s^2/u] (u is the time between measurements)
+    omega_list = sample_omega_list(omegas, omega_prior, v1, 4000)
     grid = Estimator(GridDist2D(omegas, v1s, prior), OptimizingChooser(10, 10))
     dynm = Estimator(DynamicDist2D(omegas, v1s, prior, num_particles), OptimizingChooser(10, 10))
     qinfer = Estimator(QinferDist2D(omegas, v1s, prior, num_particles), OptimizingChooser(10, 10))
@@ -45,8 +45,6 @@ def main():
     ax2.plot([np.log(v1)], [omega_list[-1]], marker='o')
     ax2.plot([grid.dist.mean_log_v1()], [grid.dist.mean_omega()], marker='*')
     #ax2.scatter(dynm.dist.vals[1], dynm.dist.vals[0], marker='o', color='g')
-    q_v1s, q_omegas, q_dist = qinfer.dist.qinfer_updater.posterior_mesh(1, 0, res1=100, res2=100, smoothing=0.02)
-    #ax2.contour(np.log(q_v1s), q_omegas, q_dist, color='r')
     #ax2.scatter(np.log(qinfer.dist.qinfer_updater.particle_locations[:, 1]),
     #    qinfer.dist.qinfer_updater.particle_locations[:, 0], color='r')
     

@@ -80,11 +80,13 @@ def v1_true():
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('v1_true')
-
 def n_measurements():
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('n_measurements')
+def t_ms():
+    plt.yscale('log')
+    plt.xlabel('time of measurement')
 
 
 plotfns = {
@@ -92,6 +94,7 @@ plotfns = {
     'est_var_omega_n_measurements': n_measurements,
     'x_trace_n_ms': n_measurements,
     'x_trace_v1_true': v1_true,
+    'x_trace_t_ms': t_ms,
 }
 
 
@@ -145,13 +148,13 @@ def main():
     
     # plot theoretical bounds
     if 'o' in options:
-        if 'gb' in options:
+        if 'gb' in options: # grid bound
             for i, t in enumerate(traces):
                 if t.dist_name in ['grid', 'grid_dist']:
                     plt.plot(t.x_list,
                         np.array(t.x_list)*0 + ((t.omega_max - t.omega_min) / t.omegas.size)**2 / 12, 
-                        label='grid bound, trace %d' % i, marker='*')
-        if 'eb' in options:
+                        label='grid bound, trace %d' % i)
+        if 'eb' in options: # estimated bound
             if plottype == 'x_trace_n_ms':
                 delta0 = np.sum(traces[0].omega_prior * traces[0].omegas**2) - np.sum(traces[0].omega_prior * traces[0].omegas)**2
                 try:
@@ -164,6 +167,11 @@ def main():
             elif plottype == 'x_trace_v1_true':
                 bnd = traces[0].x_list * EST_BND_GAMMA / (1 - EST_BND_GAMMA)
                 plt.plot(traces[0].x_list, bnd, label='estimated bound')
+        if 'crb' in options: # bayesian Cramer-Rao bound
+            if plottype == 'x_trace_t_ms':
+                tlist = traces[0].x_list
+                v1_true = fn_from_source(traces[0].get_v1)(0, 0)
+                plt.plot(tlist, v1_true * (np.sqrt(1 + 4/(tlist**2*v1_true)) - 1) / 2, label='Cramer Rao bound')
                 
 
     if 'l' in options or 'p' in options:
