@@ -11,10 +11,10 @@ def main():
     v1_prior = normalize(1. + 0.*v1s)
     prior = np.outer(omega_prior, v1_prior)
     
-    n_ms_list = [1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000]
+    n_ms_list = [1, 2, 3, 6, 10, 20, 30, 60, 100, 200, 300, 600, 1000, 2000, 3000, 6000, 10000]
     
     def get_v1(x, r):
-        return v1s[0]
+        return np.exp(5)
     def get_omega_list(x, r, v1):
         random_seed(x, r)
         ans = sample_omega_list(omegas, omega_prior, v1, x)

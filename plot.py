@@ -6,7 +6,7 @@ from util import load_data, Bunch, diff, fn_from_source
 
 # constants
 EST_BND_GAMMA = 0.78 # the gamma constant for the estimated bound
-# (see compute_est_bnd_gamma.py)
+# (run compute_est_bnd_gamma.py to compute this value)
 
 
 hyperparams = ['omega_min', 'omega_max', 'v_0', 'dist_name', 'chooser_name', 'dist_params', 'chooser_params']
@@ -154,8 +154,12 @@ def main():
         if 'eb' in options:
             if plottype == 'x_trace_n_ms':
                 delta0 = np.sum(traces[0].omega_prior * traces[0].omegas**2) - np.sum(traces[0].omega_prior * traces[0].omegas)**2
-                bnd = (delta0 * np.power(EST_BND_GAMMA, traces[0].x_list) + 
-                    (fn_from_source(traces[0].get_v1)(0, 0) * EST_BND_GAMMA / (1 - EST_BND_GAMMA)))
+                try:
+                    bnd = (delta0 * np.power(EST_BND_GAMMA, traces[0].x_list) + 
+                        (fn_from_source(traces[0].get_v1)(0, 0) * EST_BND_GAMMA / (1 - EST_BND_GAMMA)))
+                except NameError: # backwards compatibility for some data files:
+                    bnd = (delta0 * np.power(EST_BND_GAMMA, traces[0].x_list) + 
+                        (traces[0].v1s[0] * EST_BND_GAMMA / (1 - EST_BND_GAMMA)))
                 plt.plot(traces[0].x_list, bnd, label='estimated bound')
             elif plottype == 'x_trace_v1_true':
                 bnd = traces[0].x_list * EST_BND_GAMMA / (1 - EST_BND_GAMMA)

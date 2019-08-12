@@ -15,6 +15,7 @@ omega_min = 100000. # [1/s]
 omega_max = 200000. # [1/s]
 v_0       = 1000.   # [1/s^2]   # the noise in omega (essentially a decoherence rate)
 t_max     = 0.0002  # [s]       # the maximum time at which we can make a measurement
+
 q_g1      = 0.043   # P(m=1 | g)
 q_g0      = 1-q_g1  # P(m=0 | g)
 q_e0      = 0.009   # P(m=0 | e)
