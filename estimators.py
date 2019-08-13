@@ -11,8 +11,8 @@ from qinfer import SimplePrecessionModel, Distribution, LiuWestResampler, Finite
 
 
 # constants:
-omega_min = 100000. # [1/s]
-omega_max = 200000. # [1/s]
+omega_min = 130000. # [1/s]
+omega_max = 160000. # [1/s]
 v_0       = 1000.   # [1/s^2]   # the noise in omega (essentially a decoherence rate)
 t_max     = 0.0002  # [s]       # the maximum time at which we can make a measurement
 
@@ -292,13 +292,9 @@ class DynamicDist2D(ParticleDist2D, DynamicDist1D):
         self.dist *= likelihood(self.vals[0], t, m)
         self.normalize()
         new_cov = self.cov()
-        '''ratios = cov_ratios2d(new_cov, old_cov)
-        print('####################')
-        print(old_cov, new_cov)
-        print(self.target_cov, np.dot(new_cov, np.linalg.inv(old_cov)))
-        self.target_cov = np.dot(self.target_cov, np.dot(new_cov, np.linalg.inv(old_cov)))'''
-        #self.target_cov *= covmax2d(self.a, new_cov / old_cov) # max with fudge matrix
-        self.target_cov = semidefify2d(self.target_cov * new_cov / old_cov)
+        ratio = new_cov / old_cov
+        ratio[1 - np.isfinite(ratio)] = np.array([[1., 0.], [0., 1.]])[1 - np.isfinite(ratio)]
+        self.target_cov = semidefify2d(self.target_cov * ratio)
         if self.n_ess() < self.n_ess_limit * self.size:
             self.resample() # resample only if necessary
     def resample(self):

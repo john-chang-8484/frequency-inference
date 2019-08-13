@@ -10,6 +10,9 @@ def main():
         s = str(data[key])
         if len(s) < MAXSTRLEN or key in ['get_v1', 'get_omega_list', 'get_estimator']:
             print(key, ':', s)
+    if len(argv) > 2:
+        for key in data:
+            print(key, ':', repr(data[key]))
 
 if __name__ == '__main__':
     main()

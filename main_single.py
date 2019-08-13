@@ -5,7 +5,7 @@ from sys import argv
 
 def main():
     np.random.seed(int(argv[1]))
-    omegas = np.linspace(omega_min, omega_max, 300)
+    omegas = np.linspace(omega_min, omega_max, 100)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
     omega_prior = normalize(np.exp(-1e-7 * (omegas-140000)**2)) # normal prior
     log_v1s = np.linspace(0., 20., 20)
@@ -15,7 +15,7 @@ def main():
     num_particles = prior.size
     
     v1 = 2000#v1s[0] # [1/s^2/u] (u is the time between measurements)
-    omega_list = sample_omega_list(omegas, omega_prior, v1, 4000)
+    omega_list = sample_omega_list(omegas, omega_prior, v1, 10000)
     grid = Estimator(GridDist2D(omegas, v1s, prior), OptimizingChooser(10, 10))
     dynm = Estimator(DynamicDist2D(omegas, v1s, prior, num_particles), OptimizingChooser(10, 10))
     qinfer = Estimator(QinferDist2D(omegas, v1s, prior, num_particles), OptimizingChooser(10, 10))

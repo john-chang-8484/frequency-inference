@@ -7,20 +7,18 @@ from util import load_data, Bunch
 
 
 def plot(b):
-    n_estimators = b.run_hists.shape[0]
-    log_losses = np.linspace(-7., 1., 50)
-    losses = np.exp(np.log(10) * log_losses)
     colourmap = plt.get_cmap('jet')
-    colours = [colourmap(k) for k in np.linspace(0., 1., len(b.N_list))]
-    for i, run_hist, nm in zip(range(n_estimators), b.run_hists, b.estimator_names):
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        print('now plotting:', nm)
-        for j, (runs, N) in enumerate(zip(run_hist, b.N_list)):
-            histogram, _ = np.histogram(runs, bins=losses)
-            ax.bar(log_losses[:-1], histogram, zs=np.log(N)/np.log(10), zdir='y', color=colours[j])
-        plt.show()
-
+    colours = [colourmap(k) for k in np.linspace(0., 1., len(b.x_list))]
+    things = b.loss_omegas
+    bins = np.linspace(np.log(np.min(things)), np.log(np.max(things)), 30)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    for j in range(0, len(b.x_list), 4):
+        histogram, _ = np.histogram(np.log(things[j]), bins=bins)
+        ax.plot(bins[:-1], histogram, zs=b.x_list[j], zdir='y', color=colours[j])
+        ax.plot(np.log(np.mean(things, axis=1)), 0*b.x_list, zs=b.x_list, zdir='y')
+    plt.show()
+    
 
 def main():
     for filename in argv[1:]:

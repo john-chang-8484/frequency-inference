@@ -10,26 +10,26 @@ class ConstantChooser(TimeChooser):
 
 
 def main():
-    omegas = np.linspace(omega_min, omega_max, 300)
+    omegas = np.linspace(omega_min, omega_max, 100)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
     omega_prior = normalize(np.exp(-9e-7 * (omegas-140000)**2)) # normal prior
-    log_v1s = np.linspace(5., 15., 20)
+    log_v1s = np.linspace(-10., 15., 1)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
     prior = np.outer(omega_prior, v1_prior)
     
-    t_ms_list = np.linspace(0., t_max, 1)
+    t_ms_list = np.linspace(0., t_max, 200)
     
     def get_v1(x, r):
-        return np.exp(5)
+        return np.exp(-10)
     def get_omega_list(x, r, v1):
         random_seed(x, r)
-        ans = sample_omega_list(omegas, omega_prior, v1, 100)
+        ans = sample_omega_list(omegas, omega_prior, v1, 1000)
         random_reseed()
         return ans
     
     def get_estimator0(x, r, v1):
-        return Estimator(DynamicDist2D(omegas, v1s, prior, prior.size), ConstantChooser(x))
+        return Estimator(GridDist1D(omegas, omega_prior, np.exp(-10)), ConstantChooser(x))
     def get_estimator1(x, r, v1):
         return Estimator(QinferDist2D(omegas, v1s, prior, prior.size), ConstantChooser(x))
     def get_estimator2(x, r, v1):

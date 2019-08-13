@@ -8,6 +8,8 @@ from util import load_data, Bunch, diff, fn_from_source
 EST_BND_GAMMA = 0.78 # the gamma constant for the estimated bound
 # (run compute_est_bnd_gamma.py to compute this value)
 
+P_BND_GAMMA = 0.998
+
 
 hyperparams = ['omega_min', 'omega_max', 'v_0', 'dist_name', 'chooser_name', 'dist_params', 'chooser_params']
 differfns = ['get_v1', 'get_omega_list', 'get_estimator']
@@ -85,7 +87,8 @@ def n_measurements():
     plt.yscale('log')
     plt.xlabel('n_measurements')
 def t_ms():
-    plt.yscale('log')
+    #plt.yscale('log')
+    plt.plot(np.linspace(0., 0.0002, 100), 1e5*np.sin(70000*np.linspace(0., 0.0002, 100))**2)
     plt.xlabel('time of measurement')
 
 
@@ -167,6 +170,16 @@ def main():
             elif plottype == 'x_trace_v1_true':
                 bnd = traces[0].x_list * EST_BND_GAMMA / (1 - EST_BND_GAMMA)
                 plt.plot(traces[0].x_list, bnd, label='estimated bound')
+        if 'pb' in options: # pessimistic bound
+            if plottype == 'x_trace_n_ms':
+                delta0 = np.sum(traces[0].omega_prior * traces[0].omegas**2) - np.sum(traces[0].omega_prior * traces[0].omegas)**2
+                try:
+                    bnd = (delta0 * np.power(P_BND_GAMMA, traces[0].x_list) + 
+                        (fn_from_source(traces[0].get_v1)(0, 0) * P_BND_GAMMA / (1 - P_BND_GAMMA)))
+                except NameError: # backwards compatibility for some data files:
+                    bnd = (delta0 * np.power(P_BND_GAMMA, traces[0].x_list) + 
+                        (traces[0].v1s[0] * P_BND_GAMMA / (1 - P_BND_GAMMA)))
+                plt.plot(traces[0].x_list, bnd, label='pessimistic bound')
         if 'crb' in options: # bayesian Cramer-Rao bound
             if plottype == 'x_trace_t_ms':
                 tlist = traces[0].x_list
