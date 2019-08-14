@@ -388,8 +388,10 @@ class QinferDist2D(ParticleDist2D):
         pass # automatically handled in update
     def mean_omega(self):
         return self.qinfer_updater.est_mean()[0]
-    def mean_log_v1(self): # TODO: this is completely wrong!!! fix it soon
-        return self.qinfer_updater.est_mean()[1]
+    def mean_log_v1(self):
+        log_v1s = np.log(self.qinfer_updater.particle_locations[:,1])
+        return np.sum( log_v1s[np.isfinite(log_v1s)] *
+            self.qinfer_updater.particle_weights[np.isfinite(log_v1s)] )
     def posterior_marginal(self, *args, **kwargs):
         return self.qinfer_updater.posterior_marginal(*args, **kwargs)
     def sample_omega(self, n):
