@@ -186,10 +186,13 @@ def main():
                 plt.plot(traces[0].x_list, bnd, label='pessimistic bound')
         if 'crb' in options: # bayesian Cramer-Rao bound
             init_cov = np.cov(traces[0].omegas, aweights=traces[0].omega_prior)
+            try:
+                v1_true = fn_from_source(traces[0].get_v1)(0, 0)
+            except NameError: # backwards compatibility for some data files:
+                v1_true = traces[0].v1s[0]
             if plottype == 'x_trace_t_ms':
                 tlist = traces[0].x_list
                 min_cov = [init_cov * np.ones_like(tlist)]
-                v1_true = fn_from_source(traces[0].get_v1)(0, 0)
                 length = int(input('How many measurements were taken for these traces? > '))
                 for i in range(1, length):
                     min_cov.append(1 / (tlist**2 + 1 / (v1_true + min_cov[-1])))
@@ -198,7 +201,6 @@ def main():
             if plottype == 'x_trace_n_ms':
                 nlist = traces[0].x_list
                 length = max(nlist)
-                v1_true = fn_from_source(traces[0].get_v1)(0, 0)
                 min_cov = [init_cov, init_cov]
                 try:
                     t_max = traces[0].t_max
