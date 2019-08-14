@@ -69,11 +69,12 @@ class ChunkFittingEstimator(FittingEstimator):
         self.chunksize = chunksize
         self.omega_hist = []
     def mean_log_v1(self):
+        self.chunk_if_needed()
         if len(self.omega_hist) < 3:
             return np.nan
         else:
             est_omegas = np.array(self.omega_hist)
-            return np.log(np.cov(np.array(est_omegas[0:-1] - est_omegas[1:])))
+            return np.log(np.cov(np.array(est_omegas[0:-1] - est_omegas[1:])) / self.chunksize)
     def mean_omega(self):
         if sum(self.counts) < self.chunksize / 2 and len(self.omega_hist) > 0:
             return self.omega_hist[-1]
@@ -83,7 +84,7 @@ class ChunkFittingEstimator(FittingEstimator):
         """ upon reaching the chunk point, we
             reset our estimation of omega, and save old value
         """
-        if sum(self.counts) > self.chunksize:
+        if sum(self.counts) >= self.chunksize:
             self.omega_hist.append(self.mean_omega())
             self.m1s = np.zeros(len(self.m1s))
             self.counts = np.zeros(len(self.m1s))
@@ -108,14 +109,14 @@ def main():
     omega_prior = normalize(np.exp(-1e-7 * (omegas-true_omega_mean)**2)) # normal prior
     ts = np.array([0.00008, 0.0001, 0.00013, 0.0002])
     
-    fit_shots = [20, 40, 60, 100, 200, 300, 600, 1000, 2000, 3000, 6000, 10000, 20000, 30000, 60000, 100000, 300000]
+    fit_shots = [1200, 1600, 2000, 2800, 4000, 6000, 8000, 10000, 20000, 30000, 60000, 100000, 300000]
     
     def get_v1(x, r):
-        return np.exp(1.)
+        return np.exp(5.)
     def get_omega_list(x, r, v1):
         return sample_omega_list(omegas, omega_prior, v1, x)
     def get_estimator(x, r, v1):
-        return ChunkFittingEstimator(ts, 20)
+        return ChunkFittingEstimator(ts, 400)
     
     sim = Simulator(get_v1, get_omega_list, get_estimator)
     data = sim.x_trace(200, fit_shots, 'fit_shots')
