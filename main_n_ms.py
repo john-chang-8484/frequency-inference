@@ -41,9 +41,11 @@ def main():
         return Estimator(GridDist2D(omegas, v1s, prior), TwoPointChooser(10))
     
     def get_estimator1d0(x, r, v1):
+        return Estimator(GridDist1D(omegas, omega_prior, np.exp(0)), OptimizingChooser(10, 10))
+    def get_estimator1d1(x, r, v1):
         return Estimator(GridDist1D(omegas, omega_prior, np.exp(0)), RandomChooser())
     
-    for get_est in [get_estimator1d0, get_estimator4, get_estimator5]:
+    for get_est in [get_estimator1d0, get_estimator1d1, get_estimator0, get_estimator1, get_estimator4, get_estimator5]:
         sim = Simulator(get_v1, get_omega_list, get_est)
         data = sim.x_trace(200, n_ms_list, 'n_ms')
         data['omegas'], data['omega_prior'] = omegas, omega_prior
