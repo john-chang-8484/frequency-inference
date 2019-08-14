@@ -98,6 +98,7 @@ plotfns = {
     'x_trace_n_ms': n_measurements,
     'x_trace_v1_true': v1_true,
     'x_trace_t_ms': t_ms,
+    'x_trace_fit_shots': n_measurements,
 }
 
 
@@ -147,7 +148,10 @@ def main():
         plt.ylabel('v1 loss $\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle$')
     
     # customize based on type of plot
-    plotfns[plottype]()
+    try:
+        plotfns[plottype]()
+    except KeyError:
+        pass
     
     # plot theoretical bounds
     if 'o' in options:
@@ -181,10 +185,28 @@ def main():
                         (traces[0].v1s[0] * P_BND_GAMMA / (1 - P_BND_GAMMA)))
                 plt.plot(traces[0].x_list, bnd, label='pessimistic bound')
         if 'crb' in options: # bayesian Cramer-Rao bound
+            init_cov = np.cov(traces[0].omegas, aweights=traces[0].omega_prior)
             if plottype == 'x_trace_t_ms':
                 tlist = traces[0].x_list
+                min_cov = [init_cov * np.ones_like(tlist)]
                 v1_true = fn_from_source(traces[0].get_v1)(0, 0)
-                plt.plot(tlist, v1_true * (np.sqrt(1 + 4/(tlist**2*v1_true)) - 1) / 2, label='Cramer Rao bound')
+                length = int(input('How many measurements were taken for these traces? > '))
+                for i in range(1, length):
+                    min_cov.append(1 / (tlist**2 + 1 / (v1_true + min_cov[-1])))
+                plt.plot(tlist, v1_true * (np.sqrt(1 + 4/(tlist**2*v1_true)) - 1) / 2, label='Cramer Rao bound, infinite measurement floor')
+                plt.plot(tlist, min_cov[-1], label='Cramer Rao Bound')
+            if plottype == 'x_trace_n_ms':
+                nlist = traces[0].x_list
+                length = max(nlist)
+                v1_true = fn_from_source(traces[0].get_v1)(0, 0)
+                min_cov = [init_cov, init_cov]
+                try:
+                    t_max = traces[0].t_max
+                except AttributeError: # backwards compatibility for some data files
+                    t_max = float(input('What was t_max? > '))
+                for i in range(1, length):
+                    min_cov.append(1 / (t_max**2 + 1 / (v1_true + min_cov[-1])))
+                plt.plot(nlist, np.array(min_cov)[nlist], label='Cramer Rao bound')
                 
 
     if 'l' in options or 'p' in options:

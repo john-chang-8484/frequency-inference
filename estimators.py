@@ -519,6 +519,8 @@ class Simulator:
             'omega_min': omega_min,
             'omega_max': omega_max,
             'v_0': v_0,
+            't_max': t_max,
+            'q_g1': q_g1, 'q_g0': q_g0, 'q_e0': q_e0, 'q_e1': q_e1
             'x_list_nm': x_list_nm,
             'x_list': x_list,
             'dist_name': dummy_est.dist.name,
