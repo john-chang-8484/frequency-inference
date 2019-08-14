@@ -322,35 +322,6 @@ class DynamicDist2D(ParticleDist2D, DynamicDist1D):
         return np.random.choice(self.vals[0], p=self.dist, size=n)
 
 
-class NNDynamicDist2D(DynamicDist2D):
-    """ dynamic particle dist with the nearest neighbor method for
-        perturbing particles
-    """
-    name = 'nndynamic'
-    def __init__(self, omegas, v1s, prior, size):
-        self.size = size
-        self.log_v1_min, self.log_v1_max = np.log(v1s[0]), np.log(v1s[-1])
-        log_v1s, omegas = np.meshgrid(np.log(v1s), omegas)
-        indices = np.random.choice(np.arange(prior.size), p=prior.flatten(), size=self.size)
-        selected_omegas = omegas.flatten()[indices]
-        selected_log_v1s = log_v1s.flatten()[indices]
-        self.vals = np.stack([selected_omegas, selected_log_v1s], axis=0)
-        self.dist = normalize(np.ones(self.size))
-    def wait_u(self):
-        self.vals[0] = perturb_omega(self.vals[0], np.exp(self.vals[1]))
-    def update(self, t, m):
-        self.dist *= likelihood(self.vals[0], t, m)
-        self.normalize()
-        if self.n_ess() < self.n_ess_limit * self.size:
-            self.resample() # resample only if necessary
-    def resample(self):
-        self.vals = self.vals[:, deterministic_sample(self.size, self.dist)]
-        self.dist = np.ones(self.size) / self.size
-        omega_var = np.cov(self.vals[0])
-        v1_var = np.cov(self.vals[1])
-        
-
-
 #   helper classes for QinferDist2D:
 # http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
 # http://docs.qinfer.org/en/latest/guide/models.html
