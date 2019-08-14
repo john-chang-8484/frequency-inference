@@ -48,7 +48,7 @@ def main():
     fractions = np.array(totals) / np.array(counts)
     
     est = ExperimentalEstimator(GridDist1D(omegas, omega_prior, 0.), exp_ts, exp_ms)
-    est.many_measure(np.random.randint(0, len(exp_ts)-1, size=200))
+    est.many_measure(np.random.randint(0, len(exp_ts)-1, size=len(exp_ts))) # randomize measurements to prevent lots of low t measurements sending weights to 0
     plt.plot(est.dist.omegas, est.dist.dist) ; plt.show()
     mean_omega = est.mean_omega()
     print(mean_omega)

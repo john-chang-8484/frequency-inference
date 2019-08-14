@@ -5,26 +5,27 @@ from util import Bunch, idprn
 import matplotlib.pyplot as plt
 
 
+# constants:
+true_omega_mean = 140000
+
+
 class FittingChooser(TimeChooser):
+    """ cycle through a specific sequence of ts """
     name = 'fitting'
-    def __init__(self, ts, ns):
+    def __init__(self, ts):
         self.ts = ts
-        self.ns = ns
         self.i = 0
-        self.j = 0
     def get_t(self, dist):
         ans = self.ts[self.i]
-        self.j += 1
-        if self.j == self.ns[self.i]:
-            self.i += 1
-            self.j = 0
+        self.i = (self.i + 1) % len(self.ts)
         return ans
         
 
 
 class FittingEstimator(Estimator):
-    def __init__(self, ts, ns):
-        self.chooser = FittingChooser(ts, ns)
+    name = 'fitting'
+    def __init__(self, ts):
+        self.chooser = FittingChooser(ts)
         self.dist = Bunch({'name': 'none'})
         self.m1s =    np.array([0 for t in ts]) # number of shots where we got m = 1
         self.counts = np.array([0 for t in ts]) # total number of shots
@@ -33,26 +34,68 @@ class FittingEstimator(Estimator):
         prob_m1 = (lambda t, omega: likelihood(omega, t, 1))
         omega_est, uncertainty = curve_fit(
             prob_excited, self.chooser.ts, p_est,
-            p0=[140000], method='lm'
+            p0=[true_omega_mean], method='lm'
         )
-        if False:
-            plt.plot(self.chooser.ts, p_est)
-            print(omega_est)
-            ts_smooth = np.linspace(0, self.chooser.ts[-1], 250)
-            plt.plot(ts_smooth, prob_m1(ts_smooth, 140000))
-            plt.plot(ts_smooth, prob_m1(ts_smooth, omega_est))
-            plt.show()
-        return omega_est
+        '''plt.plot(self.chooser.ts, p_est)
+        print(omega_est)
+        ts_smooth = np.linspace(0, self.chooser.ts[-1], 250)
+        plt.plot(ts_smooth, prob_m1(ts_smooth, true_omega_mean))
+        plt.plot(ts_smooth, prob_m1(ts_smooth, omega_est))
+        plt.show()'''
+        return omega_est[0]
     def mean_log_v1(self):
         return np.nan # this type of estimator does not care about v1
     def many_measure(self, omega_list):
         length = len(omega_list)
         t_hist = []
-        for i in range(length):
+        for j in range(length):
             t_idx = self.chooser.i
             t = self.chooser.get_t(self.dist)
             t_hist.append(t)
-            m = measure(omega_list[i], t)
+            m = measure(omega_list[j], t)
+            if m == 1:
+                self.m1s[t_idx] += 1
+            self.counts[t_idx] += 1
+        return t_hist
+
+
+class ChunkFittingEstimator(FittingEstimator):
+    name = 'chunk_fitting'
+    def __init__(self, ts, chunksize):
+        self.chooser = FittingChooser(ts)
+        self.dist = Bunch({'name': 'none'})
+        self.m1s =    np.array([0 for t in ts]) # number of shots where we got m = 1
+        self.counts = np.array([0 for t in ts]) # total number of shots
+        self.chunksize = chunksize
+        self.omega_hist = []
+    def mean_log_v1(self):
+        if len(self.omega_hist) < 3:
+            return np.nan
+        else:
+            est_omegas = np.array(self.omega_hist)
+            return np.log(np.cov(np.array(est_omegas[0:-1] - est_omegas[1:])))
+    def mean_omega(self):
+        if sum(self.counts) < self.chunksize / 2 and len(self.omega_hist) > 0:
+            return self.omega_hist[-1]
+        else:
+            return super().mean_omega()
+    def chunk_if_needed(self):
+        """ upon reaching the chunk point, we
+            reset our estimation of omega, and save old value
+        """
+        if sum(self.counts) > self.chunksize:
+            self.omega_hist.append(self.mean_omega())
+            self.m1s = np.zeros(len(self.m1s))
+            self.counts = np.zeros(len(self.m1s))
+    def many_measure(self, omega_list):
+        length = len(omega_list)
+        t_hist = []
+        for j in range(length):
+            self.chunk_if_needed()
+            t_idx = self.chooser.i
+            t = self.chooser.get_t(self.dist)
+            t_hist.append(t)
+            m = measure(omega_list[j], t)
             if m == 1:
                 self.m1s[t_idx] += 1
             self.counts[t_idx] += 1
@@ -62,17 +105,17 @@ class FittingEstimator(Estimator):
 def main():
     omegas = np.linspace(omega_min, omega_max, 100)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
-    omega_prior = normalize(np.exp(-1e-7 * (omegas-140000)**2)) # normal prior
+    omega_prior = normalize(np.exp(-1e-7 * (omegas-true_omega_mean)**2)) # normal prior
     ts = np.array([0.00008, 0.0001, 0.00013, 0.0002])
     
-    fit_shots = [12, 20, 32, 60, 100, 200, 300, 600, 1000, 2000, 3000, 6000, 10000, 20000, 30000, 60000, 100000, 300000]
+    fit_shots = [20, 40, 60, 100, 200, 300, 600, 1000, 2000, 3000, 6000, 10000, 20000, 30000, 60000, 100000, 300000]
     
     def get_v1(x, r):
-        return np.exp(0.)
+        return np.exp(1.)
     def get_omega_list(x, r, v1):
         return sample_omega_list(omegas, omega_prior, v1, x)
     def get_estimator(x, r, v1):
-        return FittingEstimator(ts, np.ones(4, dtype=np.int64)*x//4)
+        return ChunkFittingEstimator(ts, 20)
     
     sim = Simulator(get_v1, get_omega_list, get_estimator)
     data = sim.x_trace(200, fit_shots, 'fit_shots')

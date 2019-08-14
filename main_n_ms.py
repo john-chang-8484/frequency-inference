@@ -6,7 +6,7 @@ def main():
     omegas = np.linspace(omega_min, omega_max, 60)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
     omega_prior = normalize(np.exp(-1e-7 * (omegas-140000)**2)) # normal prior
-    log_v1s = np.linspace(0., 15., 1)
+    log_v1s = np.linspace(0., 15., 10)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
     prior = np.outer(omega_prior, v1_prior)
@@ -30,7 +30,7 @@ def main():
     def get_estimator3(x, r, v1):
         return Estimator(DynamicDist2D(omegas, v1s, prior, prior.size), RandomChooser())
     def get_estimator4(x, r, v1):
-        return Estimator(QinferDist2D(omegas, v1s, prior, prior.size*4), RandomChooser())
+        return Estimator(QinferDist2D(omegas, v1s, prior, prior.size), RandomChooser())
     def get_estimator5(x, r, v1):
         return Estimator(GridDist2D(omegas, v1s, prior), RandomChooser())
     def get_estimator6(x, r, v1):
