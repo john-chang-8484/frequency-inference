@@ -16,7 +16,7 @@ class ExperimentalEstimator(Estimator):
         for i in whichts:
             self.dist.wait_u()
             self.dist.update(self.exp_ts[i], self.exp_ms[i])
-            if False:
+            if True and i > 6400 and i % 200 == 0:
                 plt.plot(self.dist.omegas, self.dist.dist)
                 plt.plot(self.dist.omegas, normalize(likelihood(self.dist.omegas, self.exp_ts[i], self.exp_ms[i])))
                 plt.show()
@@ -48,7 +48,7 @@ def main():
     fractions = np.array(totals) / np.array(counts)
     
     est = ExperimentalEstimator(GridDist1D(omegas, omega_prior, 0.), exp_ts, exp_ms)
-    est.many_measure(np.random.randint(0, len(exp_ts)-1, size=len(exp_ts))) # randomize measurements to prevent lots of low t measurements sending weights to 0
+    est.many_measure(np.arange(len(exp_ts))) # randomize measurements to prevent lots of low t measurements sending weights to 0
     plt.plot(est.dist.omegas, est.dist.dist) ; plt.show()
     mean_omega = est.mean_omega()
     print(mean_omega)

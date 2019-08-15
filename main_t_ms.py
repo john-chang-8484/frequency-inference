@@ -18,7 +18,7 @@ def main():
     v1_prior = normalize(1. + 0.*v1s)
     prior = np.outer(omega_prior, v1_prior)
     
-    t_ms_list = np.linspace(0., t_max, 200)
+    t_ms_list = np.linspace(0., 3*t_max, 200)
     
     def get_v1(x, r):
         return np.exp(-10)

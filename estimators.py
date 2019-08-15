@@ -13,7 +13,7 @@ from qinfer import SimplePrecessionModel, Distribution, LiuWestResampler, Finite
 # constants:
 omega_min = 130000. # [1/s]
 omega_max = 160000. # [1/s]
-v_0       = 1000.   # [1/s^2]   # the noise in omega (essentially a decoherence rate)
+v_0       = 0.      # [1/s^2]   # the noise in omega (essentially a decoherence rate)
 t_max     = 0.0002  # [s]       # the maximum time at which we can make a measurement
 
 q_g1      = 0.043   # P(m=1 | g)
@@ -27,7 +27,7 @@ q_e1      = 1-q_e0  # P(m=1 | e)
 
 def prob_excited(t, omega):
     """ probability of excitation at time t for a given value of omega
-        - assumes zero detuning
+        -> assumes zero detuning
     """
     return 0.5 * (1. - np.cos(omega * t) * np.exp(- 0.5 * v_0 * t))
 
