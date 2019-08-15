@@ -11,7 +11,7 @@ class ExperimentalEstimator(Estimator):
         self.exp_ts = exp_ts
         self.exp_ms = exp_ms
         self.exp_t_us = exp_t_us
-    def many_measure(self, whichts=None):
+    def many_measure(self, whichts=None, t_u_list=None):
         """ whichts determines the subset of ts which we actually do inference
             with. should be a list of integers in increasing order """
         if whichts is None:
@@ -20,7 +20,7 @@ class ExperimentalEstimator(Estimator):
             if i > 0:
                 self.dist.wait_u(self.exp_t_us[i] - self.exp_t_us[i-1])
             self.dist.update(self.exp_ts[i], self.exp_ms[i])
-            if True and i > 4040 and i % 1 == 0:
+            if True and i > 2044 and i % 1 == 0:
                 print(i)
                 plt.plot(self.dist.omegas, self.dist.dist)
                 plt.plot(self.dist.omegas, normalize(likelihood(self.dist.omegas, self.exp_ts[i], self.exp_ms[i])))
@@ -63,7 +63,7 @@ def main():
     fractions = np.array(totals) / np.array(counts)
     
     est = ExperimentalEstimator(GridDist1D(omegas, omega_prior, 100.), exp_ts, exp_ms, exp_t_us)
-    est.many_measure(np.arange(len(exp_ts))) # randomize measurements to prevent lots of low t measurements sending weights to 0
+    est.many_measure(np.arange(len(exp_ts)), exp_t_us) # randomize measurements to prevent lots of low t measurements sending weights to 0
     plt.plot(est.dist.omegas, est.dist.dist) ; plt.show()
     mean_omega = est.mean_omega()
     print(mean_omega)
