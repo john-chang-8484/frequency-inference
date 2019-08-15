@@ -14,21 +14,22 @@ def main():
     prior = np.outer(omega_prior, v1_prior)
     num_particles = prior.size
     
-    v1 = 2000#v1s[0] # [1/s^2/u] (u is the time between measurements)
-    omega_list = sample_omega_list(omegas, omega_prior, v1, 10000)
+    v1 = 200#v1s[0] # [1/s^2/u] (u is the time between measurements)
+    t_u_list = np.arange(1, 1000)**1.5
+    omega_list = sample_omega_list(omegas, omega_prior, v1, t_u_list)
     grid = Estimator(GridDist2D(omegas, v1s, prior), OptimizingChooser(10, 10))
     dynm = Estimator(DynamicDist2D(omegas, v1s, prior, num_particles), OptimizingChooser(10, 10))
-    qinfer = Estimator(QinferDist2D(omegas, v1s, prior, num_particles), OptimizingChooser(10, 10))
+    #qinfer = Estimator(QinferDist2D(omegas, v1s, prior, num_particles), OptimizingChooser(10, 10))
     
-    th_grid = grid.many_measure(omega_list)
-    th_dynm = dynm.many_measure(omega_list)
-    th_qinfer = qinfer.many_measure(omega_list)
+    th_grid = grid.many_measure(omega_list, t_u_list)
+    th_dynm = dynm.many_measure(omega_list, t_u_list)
+    #th_qinfer = qinfer.many_measure(omega_list, t_u_list)
     if False:
         plt.plot(th_grid); plt.show()
         plt.plot(th_dynm); plt.show()
-        plt.plot(th_qinfer); plt.show()
+        #plt.plot(th_qinfer); plt.show()
     
-    print(grid.dist.mean_omega(), dynm.dist.mean_omega(), qinfer.dist.mean_omega())
+    print(grid.dist.mean_omega(), dynm.dist.mean_omega())#, qinfer.dist.mean_omega())
     print('true: ', omega_list[-1])
     print('loss: ', (grid.dist.mean_omega() - omega_list[-1])**2)
     
@@ -48,10 +49,10 @@ def main():
     #ax2.scatter(np.log(qinfer.dist.qinfer_updater.particle_locations[:, 1]),
     #    qinfer.dist.qinfer_updater.particle_locations[:, 0], color='r')
     
-    ax1.plot(np.arange(len(omega_list)), omega_list)
-    ax1.plot(0.5 * len(omega_list) * omega_prior / np.max(omega_prior), omegas)
+    ax1.plot(t_u_list, omega_list)
+    ax1.plot(0.5 * t_u_list[-1] * omega_prior / np.max(omega_prior), omegas)
     ax1.set_ylabel('$\Omega$')
-    ax1.set_xlabel('measurement number')
+    ax1.set_xlabel('t_us')
     ax2.set_xlabel('v_1')
     plt.show()
 

@@ -15,9 +15,11 @@ def main():
     
     def get_v1(x, r):
         return np.exp(10.)
-    def get_omega_list(x, r, v1):
+    def get_omega_list(x, r, v1, t_u_list=None):
         random_seed(x, r)
-        ans = sample_omega_list(omegas, omega_prior, v1, x)
+        if t_u_list is None:
+            t_u_list = np.arange(x)
+        ans = sample_omega_list(omegas, omega_prior, v1, t_u_list)
         random_reseed()
         return ans
     

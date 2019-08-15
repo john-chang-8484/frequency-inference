@@ -59,12 +59,13 @@ def sample_dist(values, dist, size=None):
         (extvals[i-1] + extvals[i])/2,
         (extvals[i] + extvals[i+1])/2 )
 
-def sample_omega_list(omegas, prior, v1, length):
+def sample_omega_list(omegas, prior, v1, t_u_list):
     """ sample omega from the prior, then simulate random drift over time """
     omega0 = sample_dist(omegas, prior)
     omega_list = [omega0]
-    for i in range(1, length):
-        omega_list.append(perturb_omega(omega_list[-1], v1))
+    for i in range(1, len(t_u_list)):
+        omega_list.append(perturb_omega(
+            omega_list[-1], v1 * (t_u_list[i] - t_u_list[i-1]) ))
     return omega_list
 
 def measure(omega, t):
@@ -106,11 +107,12 @@ class GridDist1D(ParticleDist1D):
         self.dist = np.copy(prior)
         self.v1 = v1
         
-    def wait_u(self):
+    def wait_u(self, n_u=1.):
         """ given a posterior distribution for omega at time T,
-            we find the dist for omega at time T+u """
+            we find the dist for omega at time T+u
+            or, if the optional n_u argument is not 1, at time T + n_u*u"""
         diff = omega_max - omega_min
-        fact = (self.v1 * np.pi**2) / (2. * diff**2) # update factor
+        fact = (self.v1 * n_u * np.pi**2) / (2. * diff**2) # update factor
         cos_coeffs = dct(self.dist) # switch to fourier space. (in terms of cosines to get Neumann BC)
         n = np.arange(cos_coeffs.size)
         cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
@@ -131,9 +133,9 @@ class DynamicDist1D(ParticleDist1D):
         self.omegas = omegas[deterministic_sample(size, prior)]
         self.dist = np.ones(size) / size
         self.target_cov = self.cov() # initialize target covariance to actual covariance
-    def wait_u(self):
-        self.omegas = perturb_omega(self.omegas, self.v1)
-        self.target_cov += self.v1
+    def wait_u(self, n_u=1.):
+        self.omegas = perturb_omega(self.omegas, self.v1 * n_u)
+        self.target_cov += self.v1 * n_u
     def update(self, t, m):
         old_cov = self.cov()
         self.dist *= likelihood(self.omegas, t, m)
@@ -205,6 +207,7 @@ class QinferDist1D(ParticleDist1D):
         return self.qinfer_updater.posterior_marginal(*args, **kwargs)
     def wait_u(self):
         pass # happens automatically when we call update
+        # TODO: varying n_u
 
 ##                                                                            ##
 ################################################################################
@@ -234,11 +237,11 @@ class GridDist2D(ParticleDist2D):
         self.omegas = np.copy(omegas).reshape((omegas.size, 1))
         self.v1s = np.copy(v1s).reshape((1, v1s.size))
         self.dist = np.copy(prior)
-    def wait_u(self):
+    def wait_u(self, n_u=1.):
         """ given a posterior distribution for omega at time t,
             we find the dist for omega at time t+u """
         diff = self.omegas[-1] - self.omegas[0]
-        fact = ((self.v1s * np.pi**2) / (2. * diff**2))
+        fact = ((self.v1s * n_u * np.pi**2) / (2. * diff**2))
         cos_coeffs = dct(self.dist, axis=0) # switch to fourier space, in terms of cosines to get Neumann BC
         n = np.outer(np.arange(self.shape[0]), np.ones(self.shape[1]))
         cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
@@ -286,9 +289,9 @@ class DynamicDist2D(ParticleDist2D, DynamicDist1D):
         self.target_cov = self.cov()
     def cov(self):
         return np.cov(self.vals, ddof=0, aweights=self.dist)
-    def wait_u(self):
-        self.vals[0] = perturb_omega(self.vals[0], np.exp(self.vals[1]))
-        self.target_cov += np.array([[self.mean_v1(), 0.], [0., 0.]])
+    def wait_u(self, n_u=1.):
+        self.vals[0] = perturb_omega(self.vals[0], np.exp(self.vals[1]) * n_u)
+        self.target_cov += np.array([[self.mean_v1() * n_u, 0.], [0., 0.]])
     def update(self, t, m):
         old_cov = self.cov()
         self.dist *= likelihood(self.vals[0], t, m)
@@ -361,9 +364,9 @@ class PriorSample2D(Distribution):
         self.dist = dist
     def sample(self, n=1):
         """ fancy 2D distribution sampling
-            Essentially, this function takes the midpoints between the
+            Essentially, this function calculates the midpoints between the
             grid points, then, if a grid point is selected, it samples
-            uniformly between the grid points on either side. """
+            uniformly between the midpoints on either side of that gridpoint. """
         sz = self.values.size // 2
         cat0 = np.concatenate((self.values[0:1,:], self.values, self.values[-1:,:]), axis=0)
         cat1 = np.concatenate((cat0[:,0:1], cat0, cat0[:,-1:]), axis=1)
@@ -388,6 +391,7 @@ class QinferDist2D(ParticleDist2D):
         self.qinfer_updater.update(np.array([m]), np.array([t]))
     def wait_u(self):
         pass # automatically handled in update
+        # TODO: handle varying n_ms
     def mean_omega(self):
         return self.qinfer_updater.est_mean()[0]
     def mean_log_v1(self):
@@ -486,29 +490,47 @@ class Estimator:
         return self.dist.mean_omega()
     def mean_log_v1(self):
         return self.dist.mean_log_v1()
-    def many_measure(self, omega_list):
+    def many_measure(self, omega_list, t_u_list=None):
+        """ make many measurements and update the distribution accordingly,
+            where omega_list contains the true value of omega at the time
+            of each measurement.
+            Optional argument t_u_list shows the time at which each measurement
+            was taken, this time being measured in u's. If omitted, they are
+            assumed to be spaced evenly, with a separation of 1u. """
         length = len(omega_list)
         t_hist = []
         for i in range(length):
             t = self.chooser.get_t(self.dist)
             t_hist.append(t)
             m = measure(omega_list[i], t)
-            self.dist.wait_u()
+            if i > 0:
+                if t_u_list is None:
+                    self.dist.wait_u()
+                else:
+                    self.dist.wait_u(t_u_list[i] - t_u_list[i-1])
             self.dist.update(t, m)
         return t_hist
 
 class Simulator:
-    def __init__(self, get_v1, get_omega_list, get_estimator):
+    def __init__(self, get_v1, get_omega_list, get_estimator, get_t_u_list=None):
+        """ all arguments are functions that take the numbers (x, r, v1) as arguments
+            ( except that get_v1 only takes the numbers (x, r), and
+              get_omega_list takes (x, r, v1, t_u_list=None). ) """
         self.get_v1 = get_v1
         self.get_omega_list = get_omega_list
         self.get_estimator = get_estimator
+        if get_t_u_list is None:
+            self.get_t_u_list = (lambda x, r, v1: None)
+        else:
+            self.get_t_u_list = get_t_u_list
     def do_runs(self, x, n_runs):
         loss_omega_list, loss_v1_list = np.zeros(n_runs), np.zeros(n_runs)
         for r in range(n_runs):
             v1 = self.get_v1(x, r) # [1/s^2/u] (u is the time between measurements)
-            omega_list = self.get_omega_list(x, r, v1)
             estimator = self.get_estimator(x, r, v1)
-            estimator.many_measure(omega_list)
+            t_u_list = self.get_t_u_list(x, r, v1)
+            omega_list = self.get_omega_list(x, r, v1, t_u_list)
+            estimator.many_measure(omega_list, t_u_list)
             loss_omega_list[r] = (omega_list[-1] - estimator.mean_omega())**2
             loss_v1_list[r] = (np.log(v1) - estimator.mean_log_v1())**2
         return loss_omega_list, loss_v1_list
@@ -532,6 +554,7 @@ class Simulator:
             'get_v1': inspect.getsource(self.get_v1),
             'get_omega_list': inspect.getsource(self.get_omega_list),
             'get_estimator': inspect.getsource(self.get_estimator),
+            'get_t_u_list': inspect.getsource(self.get_t_u_list),
             'loss_omegas': loss_omegas,
             'loss_v1s': loss_v1s,
             'plottype': 'x_trace_%s' % x_list_nm,

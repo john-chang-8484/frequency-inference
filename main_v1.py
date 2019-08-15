@@ -12,9 +12,13 @@ def main():
     
     def get_v1(x, r):
         return x
-    def get_omega_list(x, r, v1):
-        random_seed(hash(float(x)), r)
-        return sample_omega_list(omegas, omega_prior, v1, 500)
+    def get_omega_list(x, r, v1, t_u_list=None):
+        random_seed(x, r)
+        if t_u_list is None:
+            t_u_list = np.arange(500)
+        ans = sample_omega_list(omegas, omega_prior, v1, t_u_list)
+        random_reseed()
+        return ans
     def get_estimator0(x, r, v1):
         return Estimator(QinferDist2D(omegas, v1s, prior, prior.size), RandomChooser())
     def get_estimator1(x, r, v1):
