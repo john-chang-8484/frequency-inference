@@ -22,7 +22,7 @@ p_g = np.sum(normal_dist * likelihood(omega + off, t, 0), axis=0)
 weighted_var = (var0 * p_g) + (var1 * (1-p_g))
 print('EST_BND_GAMMA, min possible variance: ', min(np.min(var0), np.min(var1)))
 print('EST_BND_GAMMA, min outcome weighted variance: ', np.min(weighted_var))
-print('EST_BND_GAMMA, random time weighted variance: ', np.min(np.mean(weighted_var, axis=1)))
+#print('EST_BND_GAMMA, random time weighted variance: ', np.min(np.mean(weighted_var, axis=1))) # note: there is no formal reason to take this particular average
 off_n, t_n = np.meshgrid(off.flatten(), t.flatten())
 
 fig = plt.figure()

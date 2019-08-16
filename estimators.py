@@ -579,6 +579,15 @@ class Simulator:
             'dist_params': get_numeric_class_vars(type(dummy_est.dist)),
             'chooser_params': get_numeric_class_vars(type(dummy_est.chooser)),
         }
+    def get_t_hist(self, x, n_runs):
+        t_hists = []
+        for r in range(n_runs):
+            v1 = self.get_v1(x, r) # [1/s^2/u]
+            estimator = self.get_estimator(x, r, v1)
+            t_u_list = self.get_t_u_list(x, r, v1)
+            omega_list = self.get_omega_list(x, r, v1, t_u_list)
+            t_hists.append(estimator.many_measure(omega_list, t_u_list))
+        return np.array(t_hists)
 
 ##                                                                            ##
 ################################################################################
