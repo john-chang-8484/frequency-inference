@@ -14,8 +14,8 @@ def main():
     prior = np.outer(omega_prior, v1_prior)
     num_particles = prior.size
     
-    v1 = 200#v1s[0] # [1/s^2/u] (u is the time between measurements)
-    t_u_list = np.arange(1, 100)**1.5
+    v1 = np.exp(10)#v1s[0] # [1/s^2/u] (u is the time between measurements)
+    t_u_list = np.arange(0, 2000)
     omega_list = sample_omega_list(omegas, omega_prior, v1, t_u_list)
     grid = Estimator(GridDist2D(omegas, v1s, prior), OptimizingChooser(10, 10))
     dynm = Estimator(DynamicDist2D(omegas, v1s, prior, num_particles), OptimizingChooser(10, 10))

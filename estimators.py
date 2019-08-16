@@ -480,9 +480,11 @@ class OptimizingChooser(TimeChooser):
     name = 'optimizing'
     def __init__(self, n_omegas, n_ts):
         self.n_omegas, self.n_ts = n_omegas, n_ts
+    def get_potential_ts(self):
+        return np.random.uniform(0., t_max, self.n_ts).reshape(1, self.n_ts)
     def get_t(self, dist):
         omegas = dist.sample_omega(self.n_omegas).reshape(self.n_omegas, 1)
-        ts = np.random.uniform(0., t_max, self.n_ts).reshape(1, self.n_ts)
+        ts = self.get_potential_ts()
         pe = likelihood(omegas, ts, 1)
         pg = 1 - pe
         mean_e = omegas * pe / np.sum(pe, axis = 0)

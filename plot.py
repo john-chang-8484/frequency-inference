@@ -78,18 +78,24 @@ def expand_names(traces):
                 traces[i].nm += ', \n%s: %s' % (param, '; '.join(dlines))
 
 
-def v1_true():
+def v1_true(traces):
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('v1_true')
-def n_measurements():
+def n_measurements(traces):
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('n_measurements')
-def t_ms():
+def t_ms(traces):
     #plt.yscale('log')
     plt.plot(np.linspace(0., 0.0002, 100), 1e5*np.sin(70000*np.linspace(0., 0.0002, 100))**2)
     plt.xlabel('time of measurement')
+def v1_nom(traces):
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('nominal v1')
+    xmin, xmax, ymin, ymax = plt.axis()
+    plt.plot([traces[0].v1_true] * 2, [ymin, ymax], label='v1_true')
 
 
 plotfns = {
@@ -99,6 +105,7 @@ plotfns = {
     'x_trace_v1_true': v1_true,
     'x_trace_t_ms': t_ms,
     'x_trace_fit_shots': n_measurements,
+    'x_trace_nominal_v1': v1_nom,
 }
 
 
@@ -149,7 +156,7 @@ def main():
     
     # customize based on type of plot
     try:
-        plotfns[plottype]()
+        plotfns[plottype](traces)
     except KeyError:
         pass
     
