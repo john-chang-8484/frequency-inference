@@ -80,6 +80,30 @@ def random_reseed():
     random.seed()
     np.random.seed()
 
+def heat_evolve(omegas, dist, v_tot):
+    """ evolve a probability distribution over a set of evenly spaced
+        particles according to the heat equation. v_tot is the amount 
+        of variance to add. """
+    delta_omega = omegas[1] - omegas[0]
+    if v_tot == 0:
+        return dist
+    elif v_tot / (delta_omega**2) < 0.4: # stability condition with wiggle room
+        dist_new = np.copy(dist)
+        # heat eq evolution
+        dist_new[1:-1] += (0.5 * v_tot / (delta_omega**2)) * (
+            dist[2:] + dist[:-2] - 2.*dist[1:-1] )
+        # boundary conditions
+        dist_new[0] += (0.5 * v_tot / (delta_omega**2)) * (dist[1] - dist[0])
+        dist_new[-1] += (0.5 * v_tot / (delta_omega**2)) * (dist[-2] - dist[-1])
+        return dist_new
+    else: # if v_tot is too big, we use eigenfunction decomposition instead
+        diff = omega_max - omega_min
+        fact = (v_tot * np.pi**2) / (2. * diff**2) # update factor
+        cos_coeffs = dct(dist) # switch to fourier space. (in terms of cosines to get Neumann BC)
+        n = np.arange(cos_coeffs.size)
+        cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
+        return np.abs(idct(cos_coeffs) / (2 * cos_coeffs.size)) # switch back to the usual representation
+
 ##                                                                            ##
 ################################################################################
 ##                           1D Distributions                                 ##
@@ -110,13 +134,9 @@ class GridDist1D(ParticleDist1D):
     def wait_u(self, n_u=1.):
         """ given a posterior distribution for omega at time T,
             we find the dist for omega at time T+u
-            or, if the optional n_u argument is not 1, at time T + n_u*u"""
-        diff = omega_max - omega_min
-        fact = (self.v1 * n_u * np.pi**2) / (2. * diff**2) # update factor
-        cos_coeffs = dct(self.dist) # switch to fourier space. (in terms of cosines to get Neumann BC)
-        n = np.arange(cos_coeffs.size)
-        cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
-        self.dist = np.abs(idct(cos_coeffs) / (2 * cos_coeffs.size)) # switch back to the usual representation
+            or, if the optional n_u argument is not 1, at time T + n_u*u """
+        v_tot = self.v1 * n_u
+        self.dist = heat_evolve(self.omegas, self.dist, v_tot)
         self.normalize()
     def update(self, t, m):
         self.dist *= likelihood(self.omegas, t, m)
@@ -240,13 +260,9 @@ class GridDist2D(ParticleDist2D):
     def wait_u(self, n_u=1.):
         """ given a posterior distribution for omega at time t,
             we find the dist for omega at time t+u """
-        diff = self.omegas[-1] - self.omegas[0]
-        fact = ((self.v1s * n_u * np.pi**2) / (2. * diff**2))
-        cos_coeffs = dct(self.dist, axis=0) # switch to fourier space, in terms of cosines to get Neumann BC
-        n = np.outer(np.arange(self.shape[0]), np.ones(self.shape[1]))
-        cos_coeffs *= np.exp( - fact * n**2 ) # heat eq update
-        self.dist = np.abs(idct(cos_coeffs, axis=0) / (2 * self.shape[0])) # switch back to the usual representation
-        self.normalize()
+        v_tots = self.v1s.flatten() * n_u
+        for i, v_tot in enumerate(v_tots):
+            self.dist[:,i] = heat_evolve(self.omegas.flatten(), self.dist[:,i], v_tot)
     def update(self, t, m):
         self.dist *= likelihood(self.omegas, t, m)
         self.normalize()

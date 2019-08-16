@@ -20,7 +20,7 @@ class ExperimentalEstimator(Estimator):
             if i > 0:
                 self.dist.wait_u(self.exp_t_us[i] - self.exp_t_us[i-1])
             self.dist.update(self.exp_ts[i], self.exp_ms[i])
-            if True and i > 2044 and i % 1 == 0:
+            if False and i > 2044 and i % 1 == 0:
                 print(i)
                 plt.plot(self.dist.omegas, self.dist.dist)
                 plt.plot(self.dist.omegas, normalize(likelihood(self.dist.omegas, self.exp_ts[i], self.exp_ms[i])))
@@ -49,7 +49,6 @@ def main():
         else:
             curr_t = exp_ts[i]
             exp_t_us.append(exp_t_us[-1] + 1.) # 1s delay to send data
-    plt.plot(exp_t_us); plt.show()
     
     times, counts, totals = [exp_ts[0]], [0], [0.]
     for t, m in zip(exp_ts, exp_ms):
@@ -62,8 +61,9 @@ def main():
             totals.append(m)
     fractions = np.array(totals) / np.array(counts)
     
-    est = ExperimentalEstimator(GridDist1D(omegas, omega_prior, 100.), exp_ts, exp_ms, exp_t_us)
-    est.many_measure(np.arange(len(exp_ts)), exp_t_us) # randomize measurements to prevent lots of low t measurements sending weights to 0
+    est = ExperimentalEstimator(GridDist1D(omegas, omega_prior, 0.), exp_ts, exp_ms, exp_t_us)
+    whichts = np.arange(len(exp_ts))#; np.random.shuffle(whichts)
+    est.many_measure(whichts)#np.arange(len(exp_ts))[::2], exp_t_us)
     plt.plot(est.dist.omegas, est.dist.dist) ; plt.show()
     mean_omega = est.mean_omega()
     print(mean_omega)
