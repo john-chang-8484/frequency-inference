@@ -181,9 +181,7 @@ class DynamicDist1D(ParticleDist1D):
         else:
             # fudge factor b multiplies the amount of variance we add
             add_var = self.b * (self.target_cov - cov_new)
-            epsilon = ( # double tailed exponential distribution
-                np.random.exponential(scale=np.sqrt(add_var/2), size=self.size)-
-                np.random.exponential(scale=np.sqrt(add_var/2), size=self.size))
+            epsilon = np.random.normal(0., np.sqrt(add_var), size=self.size)
             self.omegas = clip_omega(self.omegas + epsilon)
 
 #   helper classes for QinferDist1D:

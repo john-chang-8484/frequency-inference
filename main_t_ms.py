@@ -12,13 +12,13 @@ class ConstantChooser(TimeChooser):
 def main():
     omegas = np.linspace(omega_min, omega_max, 100)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
-    omega_prior = normalize(np.exp(-1e-8 * (omegas-140000)**2)) # normal prior
+    omega_prior = normalize(np.exp(-5e-9 * (omegas-140000)**2)) # normal prior
     log_v1s = np.linspace(-10., 15., 1)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
     prior = np.outer(omega_prior, v1_prior)
     
-    t_ms_list = np.linspace(0., 3*t_max, 100)
+    t_ms_list = np.linspace(0., 2*t_max, 200)
     
     def get_v1(x, r):
         return np.exp(-10)
