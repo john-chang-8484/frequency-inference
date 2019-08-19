@@ -7,7 +7,7 @@ from plot_util import pin_plot
 def main():
     np.random.seed(int(argv[1]))
     omegas = np.linspace(omega_min, omega_max, 100)
-    omega_prior = normalize(np.exp(-1e-8 * (omegas-140000)**2)) # normal prior
+    omega_prior = normalize(np.exp(-1e-8 * (omegas-mu_omega)**2)) # normal prior
     v1 = np.exp(10) # [1/s^2/u] (u is the time between measurements)
     num_particles = omega_prior.size
     

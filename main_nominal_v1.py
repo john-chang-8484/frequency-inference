@@ -36,6 +36,7 @@ def main():
         data['omegas'], data['omega_prior'] = omegas, omega_prior
         data['v1s'], data['v1_prior'] = v1s, v1_prior
         data['v1_true'] = v1_true
+        data['mu_omega'] = np.sum(omega_prior * omegas)
         save_data(data, get_filepath(data['plottype']))
 
 

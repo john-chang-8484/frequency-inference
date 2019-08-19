@@ -15,6 +15,7 @@ omega_min = 130000. # [1/s]
 omega_max = 150000. # [1/s]
 v_0       = 0.      # [1/s^2]   # the noise in omega (essentially a decoherence rate)
 t_max     = 0.0002  # [s]       # the maximum time at which we can make a measurement
+mu_omega  = 140000. # [1/s]     # the mean of the initial distribution on omega
 
 q_g1      = 0.043   # P(m=1 | g)
 q_g0      = 1-q_g1  # P(m=0 | g)
@@ -552,7 +553,7 @@ class Simulator:
             t_u_list = self.get_t_u_list(x, r, v1)
             omega_list = self.get_omega_list(x, r, v1, t_u_list)
             estimator.many_measure(omega_list, t_u_list)
-            loss_omega_list[r] = (omega_list[-1] - estimator.mean_omega())**2 / omega_list[-1]**2
+            loss_omega_list[r] = (omega_list[-1] - estimator.mean_omega())**2
             loss_v1_list[r] = (np.log(v1) - estimator.mean_log_v1())**2
         return loss_omega_list, loss_v1_list
     def x_trace(self, n_runs, x_list, x_list_nm):
@@ -567,6 +568,7 @@ class Simulator:
             'omega_max': omega_max,
             'v_0': v_0,
             't_max': t_max,
+            'mu_omega': mu_omega,
             'q_g1': q_g1, 'q_g0': q_g0, 'q_e0': q_e0, 'q_e1': q_e1,
             'x_list_nm': x_list_nm,
             'x_list': x_list,

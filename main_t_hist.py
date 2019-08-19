@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 def main():
     omegas = np.linspace(omega_min, omega_max, 60)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
-    omega_prior = normalize(np.exp(-1e-7 * (omegas-140000)**2)) # normal prior
+    omega_prior = normalize(np.exp(-1e-7 * (omegas-mu_omega)**2)) # normal prior
 
     def get_v1(x, r):
         return 0.

@@ -7,7 +7,7 @@ def main():
     np.random.seed(int(argv[1]))
     omegas = np.linspace(omega_min, omega_max, 100)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
-    omega_prior = normalize(np.exp(-1e-8 * (omegas-140000)**2)) # normal prior
+    omega_prior = normalize(np.exp(-1e-8 * (omegas-mu_omega)**2)) # normal prior
     log_v1s = np.linspace(0., 20., 20)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)

@@ -12,7 +12,7 @@ class ConstantChooser(TimeChooser):
 def main():
     omegas = np.linspace(omega_min, omega_max, 100)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
-    omega_prior = normalize(np.exp(-5e-9 * (omegas-140000)**2)) # normal prior
+    omega_prior = normalize(np.exp(-5e-9 * (omegas-mu_omega)**2)) # normal prior
     log_v1s = np.linspace(-10., 15., 1)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
