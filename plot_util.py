@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def pin_plot(pts, wts):
+def pin_plot(ax, pts, wts, **kwargs):
     pts = np.array(pts)
     wts = np.array(wts)
     x1 = pts
@@ -12,7 +12,7 @@ def pin_plot(pts, wts):
     y3 = x3
     x = np.stack((x1, x2, x3), axis=-1).flatten()
     y = np.stack((y1, y2, y3), axis=-1).flatten()
-    plt.plot(x, y)
+    ax.plot(x, y, **kwargs)
 
 
 def pin_plot_3d(ax, ptsx, ptsy, wts, **kwargs):

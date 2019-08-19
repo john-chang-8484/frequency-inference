@@ -12,7 +12,7 @@ from qinfer import SimplePrecessionModel, Distribution, LiuWestResampler, Finite
 
 # constants:
 omega_min = 130000. # [1/s]
-omega_max = 160000. # [1/s]
+omega_max = 150000. # [1/s]
 v_0       = 0.      # [1/s^2]   # the noise in omega (essentially a decoherence rate)
 t_max     = 0.0002  # [s]       # the maximum time at which we can make a measurement
 
@@ -192,9 +192,9 @@ class DiffusivePrecessionModel(SimplePrecessionModel):
     def __init__(self, v1, **kwargs):
         self.v1 = v1
         super().__init__(**kwargs)
-    def update_timestep(self, modelparams, expparams):
+    def update_timestep(self, modelparams, expparams, n_u=0.):
         assert expparams.shape[0] == 1
-        steps = np.random.normal(0., np.sqrt(self.v1), 
+        steps = np.random.normal(0., np.sqrt(self.v1 * n_u), 
             size=(modelparams.shape[0], 1, 1))
         return clip_omega(modelparams[:, :, np.newaxis] + steps)
 class PriorSample(Distribution):
@@ -220,14 +220,19 @@ class QinferDist1D(ParticleDist1D):
     def update(self, t, m):
         self.qinfer_updater.update(np.array([m]), np.array([t]))
     def mean_omega(self):
-        return self.qinfer_updater.est_mean()
+        return self.qinfer_updater.est_mean()[0]
     def mean_v1(self):
         return self.v1
     def posterior_marginal(self, *args, **kwargs):
         return self.qinfer_updater.posterior_marginal(*args, **kwargs)
-    def wait_u(self):
-        pass # happens automatically when we call update
-        # TODO: varying n_u
+    def wait_u(self, n_u=1.):
+        self.qinfer_updater.particle_locations = self.qinfer_model.update_timestep(
+            self.qinfer_updater.particle_locations, np.zeros((1,)), n_u )[:,:,0]
+    def sample_omega(self, n):
+        """ Take n samples of omega from this distribution. """
+        return self.qinfer_updater.particle_locations[np.random.choice(
+            self.qinfer_updater.particle_locations.shape[0],
+            p=self.qinfer_updater.particle_weights, size=n ), 0]
 
 ##                                                                            ##
 ################################################################################
@@ -364,11 +369,11 @@ class DiffusivePrecessionModel2D(FiniteOutcomeModel):
     def likelihood(self, outcomes, modelparams, expparams):
         super(DiffusivePrecessionModel2D, self).likelihood(outcomes, modelparams, expparams)
         return likelihood(modelparams[:,0], expparams, outcomes).reshape(1, modelparams.shape[0], 1)
-    def update_timestep(self, modelparams, expparams):
+    def update_timestep(self, modelparams, expparams, n_u=0.):
         assert expparams.shape[0] == 1
         modelparams_new = np.copy(modelparams)
         modelparams_new[:,1] = np.clip(modelparams[:,1], 0., np.inf)
-        steps = np.random.normal(0., np.sqrt(modelparams_new[:,1]), 
+        steps = np.random.normal(0., np.sqrt(modelparams_new[:,1] * n_u), 
             size=modelparams.shape[0])
         modelparams_new[:,0] = clip_omega(modelparams[:,0] + steps)
         return modelparams_new.reshape(modelparams.shape + (1,))
@@ -405,9 +410,9 @@ class QinferDist2D(ParticleDist2D):
             self.qinfer_prior, resampler=LiuWestResampler(self.a, self.h, debug=False) )
     def update(self, t, m):
         self.qinfer_updater.update(np.array([m]), np.array([t]))
-    def wait_u(self):
-        pass # automatically handled in update
-        # TODO: handle varying n_ms
+    def wait_u(self, n_u=1.):
+        self.qinfer_updater.particle_locations = self.qinfer_model.update_timestep(
+            self.qinfer_updater.particle_locations, np.zeros((1,)), n_u )[:,:,0]
     def mean_omega(self):
         return self.qinfer_updater.est_mean()[0]
     def mean_log_v1(self):
@@ -519,7 +524,7 @@ class Estimator:
         t_hist = []
         for i in range(length):
             t = self.chooser.get_t(self.dist)
-            t_hist.append(t)
+            t_hist.append(t * self.mean_omega())
             m = measure(omega_list[i], t)
             if i > 0:
                 if t_u_list is None:
@@ -549,7 +554,7 @@ class Simulator:
             t_u_list = self.get_t_u_list(x, r, v1)
             omega_list = self.get_omega_list(x, r, v1, t_u_list)
             estimator.many_measure(omega_list, t_u_list)
-            loss_omega_list[r] = (omega_list[-1] - estimator.mean_omega())**2
+            loss_omega_list[r] = (omega_list[-1] - estimator.mean_omega())**2 / omega_list[-1]**2
             loss_v1_list[r] = (np.log(v1) - estimator.mean_log_v1())**2
         return loss_omega_list, loss_v1_list
     def x_trace(self, n_runs, x_list, x_list_nm):

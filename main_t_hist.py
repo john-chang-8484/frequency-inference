@@ -13,7 +13,7 @@ def main():
     def get_omega_list(x, r, v1, t_u_list=None):
         random_seed(x, r)
         if t_u_list is None:
-            t_u_list = np.arange(1000)
+            t_u_list = np.arange(100)
         ans = sample_omega_list(omegas, omega_prior, v1, t_u_list)
         random_reseed()
         return ans
@@ -21,10 +21,15 @@ def main():
         return Estimator(GridDist1D(omegas, omega_prior, 0.), OptimizingChooser(20, 20))
     
     sim = Simulator(get_v1, get_omega_list, get_est)
-    t_hists = sim.get_t_hist(-1, 1000).flatten()
-    dist, bins = np.histogram(t_hists, bins=100)
-    plt.bar(bins[:-1], normalize(dist), align='edge', width=(bins[1] - bins[0]))
-    plt.xlabel('t'); plt.ylabel('relative frequency')
+    t_hists = sim.get_t_hist(-1, 1000)
+    dist, bins = np.histogram(t_hists[:, :20].flatten(), bins=100)
+    plt.bar(bins[:-1] / np.pi, normalize(dist), align='edge', width=(bins[1] - bins[0]))
+    plt.xlabel('$t \hat \Omega / \pi $'); plt.ylabel('relative frequency')
+    plt.show()
+    
+    dist, bins = np.histogram(t_hists[:, 80:].flatten(), bins=100)
+    plt.bar(bins[:-1] / np.pi, normalize(dist), align='edge', width=(bins[1] - bins[0]))
+    plt.xlabel('$t \hat \Omega / \pi $'); plt.ylabel('relative frequency')
     plt.show()
 
 
