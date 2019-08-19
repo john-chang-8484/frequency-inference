@@ -33,7 +33,7 @@ class FittingEstimator(Estimator):
         p_est = self.m1s / self.counts
         prob_m1 = (lambda t, omega: likelihood(omega, t, 1))
         omega_est, uncertainty = curve_fit(
-            prob_excited, self.chooser.ts, p_est,
+            prob_m1, self.chooser.ts, p_est,
             p0=[true_omega_mean], method='lm'
         )
         '''plt.plot(self.chooser.ts, p_est)
@@ -88,7 +88,7 @@ class ChunkFittingEstimator(FittingEstimator):
             self.omega_hist.append(self.mean_omega())
             self.m1s = np.zeros(len(self.m1s))
             self.counts = np.zeros(len(self.m1s))
-    def many_measure(self, omega_list):
+    def many_measure(self, omega_list, t_u_list):
         length = len(omega_list)
         t_hist = []
         for j in range(length):
@@ -113,12 +113,17 @@ def main():
     
     def get_v1(x, r):
         return np.exp(10.)
-    def get_omega_list(x, r, v1):
-        return sample_omega_list(omegas, omega_prior, v1, x)
+    def get_omega_list(x, r, v1, t_u_list=None):
+        random_seed(x, r)
+        if t_u_list is None:
+            t_u_list = np.arange(x)
+        ans = sample_omega_list(omegas, omega_prior, v1, t_u_list)
+        random_reseed()
+        return ans
     def get_estimator(x, r, v1):
         return ChunkFittingEstimator(ts, 1000)
     
-    sim = Simulator(get_v1, get_omega_list, get_estimator)
+    sim = Simulator(get_v1, get_omega_list, get_estimator, None)
     data = sim.x_trace(200, fit_shots, 'fit_shots')
     data['omegas'], data['omega_prior'] = omegas, omega_prior
     data['v1s'], data['v1_prior'] = None, None

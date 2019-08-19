@@ -1,5 +1,6 @@
 from estimators import *
 from sys import argv
+from scipy.optimize import curve_fit
 
 omega_min = 100000.
 omega_max = 200000.
@@ -30,7 +31,7 @@ class ExperimentalEstimator(Estimator):
         self.exp_ms = exp_ms
         self.exp_t_us = exp_t_us
     def many_measure(self, whichts=None, t_u_list=None):
-        """ whichts determines the subset of ts which we actually do inference
+        """ whichts determines the subset of ts we actually do inference
             with. should be a list of integers in increasing order
             this fn ignores the t_u_list param """
         if whichts is None:
@@ -39,6 +40,33 @@ class ExperimentalEstimator(Estimator):
             if i > 0:
                 self.dist.wait_u(self.exp_t_us[i] - self.exp_t_us[i-1])
             self.dist.update(self.exp_ts[i], self.exp_ms[i])
+
+
+class FittingExperimentalEstimator(ExperimentalEstimator):
+    def __init__(self, exp_ts, exp_ms, exp_t_us):
+        self.exp_ts = exp_ts
+        self.exp_ms = exp_ms
+        self.exp_t_us = exp_t_us
+    def many_measure(self, whichts=None):
+        if whichts is None:
+            whichts = np.arange(len(self.exp_ts))
+        counts = {}
+        for i in whichts:
+            t, m = self.exp_ts[i], self.exp_ms[i]
+            if t in counts:
+                counts[t][0] += 1
+                counts[t][1] += m
+            else:
+                counts[t] = [1, m]
+        self.unique_ts = np.array([t for t in counts])
+        self.est_probs = np.array([counts[t][1] / counts[t][0] for t in self.unique_ts])
+    def mean_omega(self):
+        prob_m1 = (lambda t, omega: likelihood(omega, t, 1))
+        omega_est, uncertainty = curve_fit(
+            prob_m1, self.unique_ts, self.est_probs,
+            p0=[mu_omega], method='lm'
+        )
+        return omega_est
 
 
 def ChunkChooser(OptimizingChooser):
@@ -113,14 +141,18 @@ def main():
     fractions = np.array(totals) / np.array(counts)
     
     est = ExperimentalEstimator(GridDist1D(omegas, omega_prior, 1.e-30), exp_ts, exp_ms, exp_t_us)
+    fit_est = FittingExperimentalEstimator(exp_ts, exp_ms, exp_t_us)
     whichts = np.arange(len(exp_ts))#; np.random.shuffle(whichts)
     est.many_measure(whichts)#np.arange(len(exp_ts))[::2], exp_t_us)
-    plt.plot(est.dist.omegas, est.dist.dist) ; plt.show()
+    fit_est.many_measure(whichts)
+    #plt.plot(est.dist.omegas, est.dist.dist) ; plt.show()
     mean_omega = est.mean_omega()
-    print(mean_omega)
+    fit_omega = fit_est.mean_omega()
+    print(mean_omega, fit_omega, (mean_omega - fit_omega)**2)
     plt.plot(times, fractions)
     ts = np.linspace(exp_ts[0], exp_ts[-1], 200)
     plt.plot(ts, likelihood(mean_omega, ts, 1))
+    plt.plot(ts, likelihood(fit_omega, ts, 1))
     plt.show()
     
 
