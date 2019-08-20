@@ -52,7 +52,7 @@ def main():
     pin_plot(ax1, [omega_list[-1]], [t_u_list[-1]], label='true final value of $\Omega$', color='black')
     pin_plot(ax2, [omega_list[-1]], [ax2_top], label='true final value of $\Omega$', color='black')
     
-    ax1.set_ylabel('$t  [u]$')
+    ax1.set_ylabel('t [u]')
     ax2.set_ylabel('posterior distribution')
     ax2.set_xlabel('$\Omega$')
     

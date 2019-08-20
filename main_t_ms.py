@@ -18,7 +18,7 @@ def main():
     v1_prior = normalize(1. + 0.*v1s)
     prior = np.outer(omega_prior, v1_prior)
     
-    t_ms_list = np.linspace(0., 2*t_max, 3)
+    t_ms_list = np.linspace(0., 2*t_max, 200)
     
     def get_v1(x, r):
         return 0.
@@ -37,7 +37,7 @@ def main():
     def get_estimator2(x, r, v1):
         return Estimator(QinferDist1D(omegas, omega_prior, 0.0001, prior.size), ConstantChooser(x))
     
-    for get_est in [get_estimator2]:#[get_estimator0, get_estimator1, get_estimator2]:
+    for get_est in [get_estimator0, get_estimator1, get_estimator2]:
         sim = Simulator(get_v1, get_omega_list, get_est)
         data = sim.x_trace(200, t_ms_list, 't_ms')
         data['omegas'], data['omega_prior'] = omegas, omega_prior

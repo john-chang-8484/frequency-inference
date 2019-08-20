@@ -1,12 +1,17 @@
 from estimators import *
 from sys import argv
 from scipy.optimize import curve_fit
+from matplotlib.font_manager import FontProperties
 
 omega_min = 100000.
 omega_max = 200000.
 
 
 def chunkify_data(exp_ts, exp_ms, exp_t_us, tseq):
+    """ if tseq is a random permutation of times, we
+        cut data into chunks, each of which is a run
+        through tseq, with some values maybe missing
+    """
     lookup_table = {t: i for i, t in enumerate(tseq)}
     def comp(a, b):
         return lookup_table[a] < lookup_table[b]
@@ -24,6 +29,18 @@ def chunkify_data(exp_ts, exp_ms, exp_t_us, tseq):
     return chunked_ts, chunked_ms, chunked_t_us
 
 
+def break_out_times(exp_ts, whichts):
+    """ group together measurements with the same t """
+    t_groups, i_groups = [], []
+    for t, i in zip(exp_ts, whichts):
+        if len(t_groups) > 0 and t_groups[-1] == t:
+            i_groups[-1].append(i)
+        else:
+            t_groups.append(t)
+            i_groups.append([i])
+    return t_groups, i_groups
+
+
 class ExperimentalEstimator(Estimator):
     def __init__(self, dist, exp_ts, exp_ms, exp_t_us):
         self.dist = dist
@@ -38,7 +55,7 @@ class ExperimentalEstimator(Estimator):
             whichts = np.arange(len(self.exp_ts))
         for i in whichts:
             if i > 0:
-                self.dist.wait_u(self.exp_t_us[i] - self.exp_t_us[i-1])
+                self.dist.wait_u(abs(self.exp_t_us[i] - self.exp_t_us[i-1])) # take abs to allow for reverse evaluation
             self.dist.update(self.exp_ts[i], self.exp_ms[i])
 
 
@@ -66,7 +83,7 @@ class FittingExperimentalEstimator(ExperimentalEstimator):
             prob_m1, self.unique_ts, self.est_probs,
             p0=[mu_omega], method='lm'
         )
-        return omega_est
+        return omega_est[0]
 
 
 def ChunkChooser(OptimizingChooser):
@@ -140,19 +157,48 @@ def main():
             totals.append(m)
     fractions = np.array(totals) / np.array(counts)
     
-    est = ExperimentalEstimator(GridDist1D(omegas, omega_prior, 1.e-30), exp_ts, exp_ms, exp_t_us)
+    est = ExperimentalEstimator(GridDist1D(omegas, omega_prior, 0.), exp_ts, exp_ms, exp_t_us)
     fit_est = FittingExperimentalEstimator(exp_ts, exp_ms, exp_t_us)
-    whichts = np.arange(len(exp_ts))#; np.random.shuffle(whichts)
-    est.many_measure(whichts)#np.arange(len(exp_ts))[::2], exp_t_us)
+    sparse_est = ExperimentalEstimator(GridDist1D(omegas, omega_prior, 0.), exp_ts, exp_ms, exp_t_us)
+    fit_sparse_est = FittingExperimentalEstimator(exp_ts, exp_ms, exp_t_us)
+    
+    whichts = np.arange(len(exp_ts))
+    t_groups, i_groups = break_out_times(exp_ts, whichts)
+    sparse_whichts = [i for lst in i_groups[19::50] for i in lst]
+    est.many_measure(whichts)
     fit_est.many_measure(whichts)
-    #plt.plot(est.dist.omegas, est.dist.dist) ; plt.show()
+    sparse_est.many_measure(whichts[19::50])
+    fit_sparse_est.many_measure(sparse_whichts)
+
     mean_omega = est.mean_omega()
     fit_omega = fit_est.mean_omega()
-    print(mean_omega, fit_omega, (mean_omega - fit_omega)**2)
-    plt.plot(times, fractions)
+    sparse_omega = sparse_est.mean_omega()
+    fit_sparse_omega = fit_sparse_est.mean_omega()
+    print(exp_ts.shape, len(sparse_whichts), len(whichts[19::50]))
+    print(fit_omega, '\tfit')
+    print(mean_omega, np.abs(mean_omega - fit_omega) / fit_omega, '\t Bayes')
+    print(fit_sparse_omega, np.abs(fit_sparse_omega - fit_omega) / fit_omega, '\tsparse fit')
+    print(sparse_omega, np.abs(sparse_omega - fit_omega) / fit_omega, '\tsparse Bayes')
+    
+    fig = plt.figure()
+    ax = plt.subplot(111)
+    
+    ax.plot(times, fractions, label='approximate p(m=1) from measurements')
     ts = np.linspace(exp_ts[0], exp_ts[-1], 200)
-    plt.plot(ts, likelihood(mean_omega, ts, 1))
-    plt.plot(ts, likelihood(fit_omega, ts, 1))
+    ax.plot(ts, likelihood(fit_omega, ts, 1), label='Fitting Method')
+    ax.plot(ts, likelihood(mean_omega, ts, 1), label='Bayesian Method')
+    ax.plot(ts, likelihood(sparse_omega, ts, 1), label='Bayesian Method, sparse data')
+    ax.plot(ts, likelihood(fit_sparse_omega, ts, 1), label='Fitting Method, sparse data')
+    ax.scatter(times[19::50], fractions[19::50])
+    
+    ax.set_xlabel('t [s]')
+    ax.set_ylabel('P(m=1)')
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0 + box.height * 0.2,
+        box.width, box.height * 0.8])
+    fontP = FontProperties()
+    fontP.set_size('small')
+    ax.legend(loc='upper center', prop=fontP, ncol=2, bbox_to_anchor=(0.5, -0.15))
     plt.show()
     
 

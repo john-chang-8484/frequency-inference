@@ -523,10 +523,11 @@ class Estimator:
             was taken, this time being measured in u's. If omitted, they are
             assumed to be spaced evenly, with a separation of 1u. """
         length = len(omega_list)
-        t_hist = []
+        t_hist, t_omega_hat_hist = [], []
         for i in range(length):
             t = self.chooser.get_t(self.dist)
-            t_hist.append(t * self.mean_omega())
+            t_hist.append(t)
+            t_omega_hat_hist.append(t * self.mean_omega())
             m = measure(omega_list[i], t)
             if i > 0:
                 if t_u_list is None:
@@ -534,7 +535,7 @@ class Estimator:
                 else:
                     self.dist.wait_u(t_u_list[i] - t_u_list[i-1])
             self.dist.update(t, m)
-        return t_hist
+        return t_hist, t_omega_hat_hist
 
 class Simulator:
     def __init__(self, get_v1, get_omega_list, get_estimator, get_t_u_list=None):
@@ -589,13 +590,16 @@ class Simulator:
         }
     def get_t_hist(self, x, n_runs):
         t_hists = []
+        t_omega_hat_hists = []
         for r in range(n_runs):
             v1 = self.get_v1(x, r) # [1/s^2/u]
             estimator = self.get_estimator(x, r, v1)
             t_u_list = self.get_t_u_list(x, r, v1)
             omega_list = self.get_omega_list(x, r, v1, t_u_list)
-            t_hists.append(estimator.many_measure(omega_list, t_u_list))
-        return np.array(t_hists)
+            t_hist, t_omega_hat_hist = estimator.many_measure(omega_list, t_u_list)
+            t_hists.append(t_hist)
+            t_omega_hat_hists.append(t_omega_hat_hist)
+        return np.array(t_hists), np.array(t_omega_hat_hists)
 
 ##                                                                            ##
 ################################################################################
