@@ -106,13 +106,13 @@ class ChunkFittingEstimator(FittingEstimator):
 def main():
     omegas = np.linspace(omega_min, omega_max, 100)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
-    omega_prior = normalize(np.exp(-1e-7 * (omegas-true_omega_mean)**2)) # normal prior
+    omega_prior = normalize(np.exp(-1e-8 * (omegas-mu_omega)**2)) # normal prior
     ts = np.array([0.00008, 0.0001, 0.00013, 0.0002])
     
     fit_shots = [3000, 4000, 6000, 8000, 10000, 20000, 30000, 60000, 100000, 300000]
     
     def get_v1(x, r):
-        return np.exp(10.)
+        return np.exp(0.)
     def get_omega_list(x, r, v1, t_u_list=None):
         random_seed(x, r)
         if t_u_list is None:

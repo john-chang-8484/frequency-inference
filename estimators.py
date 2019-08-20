@@ -196,6 +196,9 @@ class DiffusivePrecessionModel(SimplePrecessionModel):
         steps = np.random.normal(0., np.sqrt(self.v1 * n_u), 
             size=(modelparams.shape[0], 1, 1))
         return clip_omega(modelparams[:, :, np.newaxis] + steps)
+    def likelihood(self, outcomes, modelparams, expparams):
+        super(DiffusivePrecessionModel, self).likelihood(outcomes, modelparams, expparams)
+        return likelihood(modelparams[:,0], expparams, outcomes).reshape(1, modelparams.shape[0], 1)
 class PriorSample(Distribution):
     n_rvs = 1
     def __init__(self, values, dist):

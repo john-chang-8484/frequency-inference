@@ -6,7 +6,7 @@ from plot_util import pin_plot
 
 def main():
     np.random.seed(int(argv[1]))
-    omegas = np.linspace(omega_min, omega_max, 100)
+    omegas = np.linspace(omega_min, omega_max, 200)
     omega_prior = normalize(np.exp(-1e-8 * (omegas-mu_omega)**2)) # normal prior
     v1 = np.exp(10) # [1/s^2/u] (u is the time between measurements)
     num_particles = omega_prior.size
@@ -29,12 +29,12 @@ def main():
     ax1 = plt.subplot(211)
     ax2 = plt.subplot(212, sharex=ax1)
     
-    ax2_top = np.max(grid.dist.dist)
+    ax2_top = np.max(grid.dist.dist) * 1.3
     
     ax1.plot(omega_list, t_u_list, label='true history of $\Omega$')
     ax1.plot(omegas, 0.5 * t_u_list[-1] * omega_prior / np.max(omega_prior), label='omega prior')
     
-    ax2.plot(omegas, grid.dist.dist, label='grid', color='tab:blue')
+    pin_plot(ax2, omegas, grid.dist.dist, label='grid', color='tab:blue')
     pin_plot(ax2, [grid.mean_omega()], [ax2_top], linestyle='--', color='tab:blue')
     
     pin_plot( ax2,

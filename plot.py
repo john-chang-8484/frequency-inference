@@ -24,18 +24,23 @@ class Trace:
     def __str__(self):
         return self.nm
     def plot_omega_loss(self):
-        y = np.mean(self.loss_omegas, axis=1)
-        u_y = np.std(self.loss_omegas, axis=1) / np.sqrt(self.loss_omegas.shape[1])
+        means = np.mean(self.loss_omegas, axis=1)
+        u_rel = np.std(self.loss_omegas, axis=1) / (np.sqrt(self.loss_omegas.shape[1]) * means)
+        y = np.sqrt(means) / self.mu_omega
+        u_y = 0.5 * u_rel * y
         plt.errorbar(self.x_list, y, yerr=u_y, capsize=2,
             label=('omega_loss' + self.nm), color=self.colour1)
-        plt.plot(self.x_list, np.median(self.loss_omegas, axis=1),
+        y_med = np.sqrt(np.median(self.loss_omegas, axis=1)) / self.mu_omega
+        plt.plot(self.x_list, y_med,
             linestyle='--', color=self.colour1)
     def plot_v1_loss(self):
-        y = np.mean(self.loss_v1s, axis=1)
-        u_y = np.std(self.loss_v1s, axis=1) / np.sqrt(self.loss_v1s.shape[1])
+        means = np.mean(self.loss_v1s, axis=1)
+        u_rel = np.std(self.loss_v1s, axis=1) / (np.sqrt(self.loss_v1s.shape[1]) * means)
+        y = np.sqrt(means)
+        u_y = 0.5 * u_rel * y
         plt.errorbar(self.x_list, y, yerr=u_y, capsize=2,
             label=('v1_loss' + self.nm), color=self.colour2)
-        plt.plot(self.x_list, np.median(self.loss_v1s, axis=1),
+        plt.plot(self.x_list, np.sqrt(np.median(self.loss_v1s, axis=1)),
             linestyle='--', color=self.colour2)
 
 
@@ -87,8 +92,8 @@ def n_measurements(traces):
     plt.yscale('log')
     plt.xlabel('n_measurements')
 def t_ms(traces):
-    #plt.yscale('log')
-    plt.plot(np.linspace(0., 0.0002, 100), 1e5*np.sin(70000*np.linspace(0., 0.0002, 100))**2)
+    plt.yscale('log')
+    #plt.plot(np.linspace(0., 0.0002, 100), 1e5*np.sin(70000*np.linspace(0., 0.0002, 100))**2)
     plt.xlabel('time of measurement')
 def v1_nom(traces):
     plt.xscale('log')
@@ -148,11 +153,11 @@ def main():
     
     # label
     if 'o' in options and 'v' in options:
-        plt.ylabel('omega_loss = $\\langle(\\hat\\Omega - \\Omega)^2\\rangle$, v1_loss = $\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle$')
+        plt.ylabel('omega_loss = $\\\\sqrt{langle(\\hat\\Omega - \\Omega)^2\\rangle} / \\mu_\\Omega$, v1_loss = $\\sqrt{\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle}$')
     elif 'o' in options:
-        plt.ylabel('omega loss $\\langle(\\hat\\Omega - \\Omega)^2\\rangle$')
+        plt.ylabel('omega loss $\\frac{\\sqrt{\\langle(\\hat\\Omega - \\Omega)^2\\rangle}}{\\mu_\\Omega}$')
     else:
-        plt.ylabel('v1 loss $\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle$')
+        plt.ylabel('v1 loss $\\sqrt{\\langle(\\log\\hat v_1 - \\log v_1)^2\\rangle}$')
     
     # customize based on type of plot
     try:
@@ -161,12 +166,21 @@ def main():
         pass
     
     # plot theoretical bounds
+    if 'v' in options:
+        if 'gb' in options:
+            for i, t in enumerate(traces):
+                if t.dist_name in ['grid', 'grid_dist']:
+                    plt.plot(t.x_list, np.array(t.x_list)*0 + 
+                        np.sqrt((np.log(t.v1s[1]) - np.log(t.v1s[0]))**2 / 12),
+                        label='grid bound, trace %d' % i)
     if 'o' in options:
         if 'gb' in options: # grid bound
             for i, t in enumerate(traces):
                 if t.dist_name in ['grid', 'grid_dist']:
                     plt.plot(t.x_list,
-                        np.array(t.x_list)*0 + ((t.omega_max - t.omega_min) / t.omegas.size)**2 / 12, 
+                        np.sqrt( np.array(t.x_list)*0 +
+                            ((t.omega_max - t.omega_min) / t.omegas.size)**2
+                                 / 12) / t.mu_omega, 
                         label='grid bound, trace %d' % i)
         if 'eb' in options: # estimated bound
             if plottype == 'x_trace_n_ms':
@@ -203,8 +217,9 @@ def main():
                 length = int(input('How many measurements were taken for these traces? > '))
                 for i in range(1, length):
                     min_cov.append(1 / (tlist**2 + 1 / (v1_true + min_cov[-1])))
-                plt.plot(tlist, v1_true * (np.sqrt(1 + 4/(tlist**2*v1_true)) - 1) / 2, label='Cramer Rao bound, infinite measurement floor')
-                plt.plot(tlist, min_cov[-1], label='Cramer Rao Bound')
+                if 'ncrf' not in options: # option to remove floor
+                    plt.plot(tlist, np.sqrt(v1_true * (np.sqrt(1 + 4/(tlist**2*v1_true)) - 1) / 2) / traces[0].mu_omega, label='Cramer Rao bound, infinite measurement floor')
+                plt.plot(tlist, np.sqrt(min_cov[-1]) / traces[0].mu_omega, label='Cramer Rao Bound')
             if plottype == 'x_trace_n_ms':
                 nlist = traces[0].x_list
                 length = max(nlist)
@@ -215,7 +230,7 @@ def main():
                     t_max = float(input('What was t_max? > '))
                 for i in range(1, length):
                     min_cov.append(1 / (t_max**2 + 1 / (v1_true + min_cov[-1])))
-                plt.plot(nlist, np.array(min_cov)[nlist], label='Cramer Rao bound')
+                plt.plot(nlist, np.sqrt(np.array(min_cov)[nlist]) / traces[0].mu_omega, label='Cramer Rao bound')
                 
 
     if 'l' in options or 'p' in options:
