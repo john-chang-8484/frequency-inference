@@ -8,7 +8,7 @@ def main():
     omegas = np.linspace(omega_min, omega_max, 100)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
     omega_prior = normalize(np.exp(-1e-8 * (omegas-mu_omega)**2)) # normal prior
-    log_v1s = np.linspace(0., 20., 20)
+    log_v1s = np.linspace(0., 15., 20)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
     prior = np.outer(omega_prior, v1_prior)
@@ -45,10 +45,10 @@ def main():
                 grid.dist.omegas[-1, 0] + hlfd_omega, grid.dist.omegas[0, 0] - hlfd_omega] )
     ax2.plot([np.log(v1)], [omega_list[-1]], marker='o', color='black')
     ax2.plot([grid.dist.mean_log_v1()], [grid.dist.mean_omega()], marker='o', color='tab:blue', mew=1, mec='black')
-    ax2.scatter(dynm.dist.vals[1], dynm.dist.vals[0], marker='o', color='tab:orange', s=1)
+    ax2.scatter(dynm.dist.vals[1], dynm.dist.vals[0], marker='o', color='tab:orange', s=1, label='dynamic')
     ax2.plot([dynm.dist.mean_log_v1()], [dynm.dist.mean_omega()], marker='o', color='tab:orange', mew=1, mec='black')
     ax2.scatter(np.log(qinfer.dist.qinfer_updater.particle_locations[:, 1]),
-        qinfer.dist.qinfer_updater.particle_locations[:, 0], color='tab:green', s=1)
+        qinfer.dist.qinfer_updater.particle_locations[:, 0], color='tab:green', s=1, label='qinfer')
     ax2.plot([qinfer.dist.mean_log_v1()], [qinfer.dist.mean_omega()], marker='o', color='tab:green', mew=1, mec='black')
     
     ax1.plot(t_u_list, omega_list)
@@ -56,6 +56,7 @@ def main():
     ax1.set_ylabel('$\Omega$')
     ax1.set_xlabel('t_us')
     ax2.set_xlabel('v_1')
+    ax2.legend()
     plt.show()
 
 main()

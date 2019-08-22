@@ -35,7 +35,7 @@ def main():
     def get_estimator1(x, r, v1):
         return Estimator(DynamicDist1D(omegas, omega_prior, 0., prior.size), ConstantChooser(x))
     def get_estimator2(x, r, v1):
-        return Estimator(QinferDist1D(omegas, omega_prior, 0.0001, prior.size), ConstantChooser(x))
+        return Estimator(QinferDist1D(omegas, omega_prior, 0., prior.size), ConstantChooser(x))
     
     for get_est in [get_estimator0, get_estimator1, get_estimator2]:
         sim = Simulator(get_v1, get_omega_list, get_est)

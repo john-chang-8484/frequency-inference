@@ -136,13 +136,18 @@ def main():
         t.colour2 = colourmap((2*i + 1) / (2*len(traces)))
     plottype = traces[0].plottype
     
-    if 'l' in options:
+    if 'l' in options: # full legend
         expand_names(traces)
-    if 'p' in options:
+    if 'p' in options: # small legend, print full details
         expand_names(traces)
         for i, t in enumerate(traces):
             print('Trace %d:' % i, t.nm)
             t.nm = ', trace %d' % i
+    if 'dcnm' in options: # just put the name of the distribution and chooser representation in the legend
+        for i, t in enumerate(traces):
+            t.nm = ', %s, %s' % (
+                (t.dist_name if t.dist_name != 'none' else 'fitting'),
+                t.chooser_name )
     
     # plot
     for t in traces:
@@ -173,6 +178,11 @@ def main():
                     plt.plot(t.x_list, np.array(t.x_list)*0 + 
                         np.sqrt((np.log(t.v1s[1]) - np.log(t.v1s[0]))**2 / 12),
                         label='grid bound, trace %d' % i)
+        if 'ogb' in options: # just one grid bound for first trace
+            t = traces[0]
+            plt.plot(t.x_list, np.array(t.x_list)*0 + 
+                        np.sqrt((np.log(t.v1s[1]) - np.log(t.v1s[0]))**2 / 12),
+                        label='grid bound')
     if 'o' in options:
         if 'gb' in options: # grid bound
             for i, t in enumerate(traces):
@@ -182,6 +192,13 @@ def main():
                             ((t.omega_max - t.omega_min) / t.omegas.size)**2
                                  / 12) / t.mu_omega, 
                         label='grid bound, trace %d' % i)
+        if 'ogb' in options: # just one grid bound for first trace
+            t = traces[0]
+            plt.plot(t.x_list,
+                        np.sqrt( np.array(t.x_list)*0 +
+                            ((t.omega_max - t.omega_min) / t.omegas.size)**2
+                                 / 12) / t.mu_omega, 
+                        label='grid bound')
         if 'eb' in options: # estimated bound
             if plottype == 'x_trace_n_ms':
                 delta0 = np.sum(traces[0].omega_prior * traces[0].omegas**2) - np.sum(traces[0].omega_prior * traces[0].omegas)**2
@@ -233,7 +250,7 @@ def main():
                 plt.plot(nlist, np.sqrt(np.array(min_cov)[nlist]) / traces[0].mu_omega, label='Cramer Rao bound')
                 
 
-    if 'l' in options or 'p' in options:
+    if 'l' in options or 'p' in options or 'dcnm' in options:
         plt.legend()
     plt.show()
 

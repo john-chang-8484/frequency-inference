@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 
 def main():
-    omegas = np.linspace(omega_min, omega_max, 60)
+    omegas = np.linspace(omega_min, omega_max, 300)
     #omega_prior = normalize(1. + 0.*omegas) # uniform prior
     omega_prior = normalize(np.exp(-1e-7 * (omegas-mu_omega)**2)) # normal prior
 
@@ -21,17 +21,17 @@ def main():
         return Estimator(GridDist1D(omegas, omega_prior, 0.), OptimizingChooser(20, 20))
     
     sim = Simulator(get_v1, get_omega_list, get_est)
-    t_hists, t_omega_hat_hists = sim.get_t_hist(-1, 1000)
-    dist, bins = np.histogram(t_omega_hat_hists[:, :20].flatten(), bins=100)
+    t_hists, t_omega_hat_hists = sim.get_t_hist(-1, 400)
+    dist, bins = np.histogram(t_omega_hat_hists.flatten(), bins=100)
     plt.bar(bins[:-1] / np.pi, normalize(dist), align='edge', width=(bins[1] - bins[0]))
     plt.xlabel('$t \hat \Omega / \pi $'); plt.ylabel('relative frequency')
     plt.show()
-    
+    """
     dist, bins = np.histogram(t_omega_hat_hists[:, 80:].flatten(), bins=100)
     plt.bar(bins[:-1] / np.pi, normalize(dist), align='edge', width=(bins[1] - bins[0]))
     plt.xlabel('$t \hat \Omega / \pi $'); plt.ylabel('relative frequency')
     plt.show()
-
+    """
 
 if __name__ == '__main__':
     main()

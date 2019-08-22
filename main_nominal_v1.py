@@ -7,9 +7,9 @@ value of v1 that the estimators are given affects estimator accuracy.
 
 
 def main():
-    omegas = np.linspace(omega_min, omega_max, 60)
+    omegas = np.linspace(omega_min, omega_max, 600)
     omega_prior = normalize(1. + 0.*omegas)
-    log_v1s = np.linspace(0., 20., 2)
+    log_v1s = np.linspace(0., 20., 20)
     v1s = np.exp(log_v1s)
     v1_prior = normalize(1. + 0.*v1s)
     prior = np.outer(omega_prior, v1_prior)
@@ -32,7 +32,7 @@ def main():
     def get_estimator2(x, r, v1):
         return Estimator(QinferDist1D(omegas, omega_prior, x, omegas.size), RandomChooser())
     
-    for get_est in [get_estimator0, get_estimator1]:
+    for get_est in [get_estimator0, get_estimator1, get_estimator2]:
         sim = Simulator(get_v1, get_omega_list, get_est)
         data = sim.x_trace(200, v1s, 'nominal_v1')
         data['omegas'], data['omega_prior'] = omegas, omega_prior

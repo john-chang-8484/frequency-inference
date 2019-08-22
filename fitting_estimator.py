@@ -26,7 +26,7 @@ class FittingEstimator(Estimator):
     name = 'fitting'
     def __init__(self, ts):
         self.chooser = FittingChooser(ts)
-        self.dist = Bunch({'name': 'none'})
+        self.dist = Bunch({'name': 'fitting'})
         self.m1s =    np.array([0 for t in ts]) # number of shots where we got m = 1
         self.counts = np.array([0 for t in ts]) # total number of shots
     def mean_omega(self): # note: really this is just an *estimation* of omega, not the expected value
@@ -45,7 +45,7 @@ class FittingEstimator(Estimator):
         return omega_est[0]
     def mean_log_v1(self):
         return np.nan # this type of estimator does not care about v1
-    def many_measure(self, omega_list):
+    def many_measure(self, omega_list, t_u_list):
         length = len(omega_list)
         t_hist = []
         for j in range(length):
@@ -63,7 +63,7 @@ class ChunkFittingEstimator(FittingEstimator):
     name = 'chunk_fitting'
     def __init__(self, ts, chunksize):
         self.chooser = FittingChooser(ts)
-        self.dist = Bunch({'name': 'none'})
+        self.dist = Bunch({'name': 'fitting'})
         self.m1s =    np.array([0 for t in ts]) # number of shots where we got m = 1
         self.counts = np.array([0 for t in ts]) # total number of shots
         self.chunksize = chunksize
@@ -109,10 +109,11 @@ def main():
     omega_prior = normalize(np.exp(-1e-8 * (omegas-mu_omega)**2)) # normal prior
     ts = np.array([0.00008, 0.0001, 0.00013, 0.0002])
     
-    fit_shots = [3000, 4000, 6000, 8000, 10000, 20000, 30000, 60000, 100000, 300000]
+    #fit_shots = [3000, 4000, 6000, 8000, 10000, 20000, 30000, 60000, 100000, 300000]
+    fit_shots = [60, 100, 200, 300, 600, 1000, 2000, 3000, 6000, 10000, 20000, 30000, 60000, 100000]
     
     def get_v1(x, r):
-        return np.exp(0.)
+        return np.exp(5.)
     def get_omega_list(x, r, v1, t_u_list=None):
         random_seed(x, r)
         if t_u_list is None:
@@ -121,7 +122,8 @@ def main():
         random_reseed()
         return ans
     def get_estimator(x, r, v1):
-        return ChunkFittingEstimator(ts, 1000)
+        #return ChunkFittingEstimator(ts, 1000)
+        return FittingEstimator(ts)
     
     sim = Simulator(get_v1, get_omega_list, get_estimator, None)
     data = sim.x_trace(200, fit_shots, 'fit_shots')
