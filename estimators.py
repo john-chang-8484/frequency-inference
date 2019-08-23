@@ -22,6 +22,8 @@ q_g0      = 1-q_g1  # P(m=0 | g)
 q_e0      = 0.009   # P(m=0 | e)
 q_e1      = 1-q_e0  # P(m=1 | e)
 
+# note: we use "u" to refer to some unspecificed amount of wall time
+
 
 ################################################################################
 ##                            Basic Functions                                 ##
@@ -45,6 +47,7 @@ def clip_omega(omegas):
     return np.clip(omegas, omega_min, omega_max)
 
 def perturb_omega(omega, v1):
+    """ perturb omega by noise with variance v1 """
     if hasattr(omega, 'size') and omega.shape != ():
         return clip_omega(omega + np.sqrt(v1) * np.random.randn(omega.size))
     else:
@@ -140,6 +143,7 @@ class GridDist1D(ParticleDist1D):
         self.dist = heat_evolve(self.omegas, self.dist, v_tot)
         self.normalize()
     def update(self, t, m):
+        """ update distribution based on a measurement """
         self.dist *= likelihood(self.omegas, t, m)
         self.normalize()
 
@@ -185,9 +189,11 @@ class DynamicDist1D(ParticleDist1D):
             epsilon = np.random.normal(0., np.sqrt(add_var), size=self.size)
             self.omegas = clip_omega(self.omegas + epsilon)
 
-#   helper classes for QinferDist1D:
-# http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
+
 class DiffusivePrecessionModel(SimplePrecessionModel):
+    """ helper class for QinferDist1D
+        http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
+    """
     def __init__(self, v1, **kwargs):
         self.v1 = v1
         super().__init__(**kwargs)
@@ -200,14 +206,15 @@ class DiffusivePrecessionModel(SimplePrecessionModel):
         super(DiffusivePrecessionModel, self).likelihood(outcomes, modelparams, expparams)
         return likelihood(modelparams[:,0], expparams, outcomes).reshape(1, modelparams.shape[0], 1)
 class PriorSample(Distribution):
+    """ helper class for QinferDist1D """
     n_rvs = 1
     def __init__(self, values, dist):
         self.values = values
         self.dist = dist
     def sample(self, n=1):
         return np.reshape(sample_dist(self.values, self.dist, size=n), (n, 1))
-# simple wrapper class for the qinfer implementation
 class QinferDist1D(ParticleDist1D):
+    """ simple wrapper class for the qinfer implementation """
     a = 1.
     h = 0.005
     name = 'qinfer'
@@ -289,10 +296,6 @@ def semidefify2d(cov):
     a, c = max(a, 0), max(c, 0)
     b = np.clip(b, -np.sqrt(a*c), np.sqrt(a*c))
     return np.array([[a, b], [b, c]])
-def cov_ratios2d(cov1, cov2):
-    a1, b1, c1 = cov1[0,0], cov1[1,0], cov1[1, 1]
-    a2, b2, c2 = cov2[0,0], cov2[1,0], cov2[1, 1]
-    return np.array([a1/a2, b1/b2])
 class DynamicDist2D(ParticleDist2D, DynamicDist1D):
     """ A 2d particle distribution that dynamically adapts the locations of
         the particles in order to do inference with fewer particles than the
@@ -348,10 +351,13 @@ class DynamicDist2D(ParticleDist2D, DynamicDist1D):
         return np.random.choice(self.vals[0], p=self.dist, size=n)
 
 
-#   helper classes for QinferDist2D:
+#   helper classes for :
 # http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
 # http://docs.qinfer.org/en/latest/guide/models.html
 class DiffusivePrecessionModel2D(FiniteOutcomeModel):
+    """ helper class for QinferDist2D
+        http://docs.qinfer.org/en/latest/guide/timedep.html#specifying-custom-time-step-updates
+        http://docs.qinfer.org/en/latest/guide/models.html """
     @property
     def n_modelparams(self):
         return 2
@@ -380,6 +386,7 @@ class DiffusivePrecessionModel2D(FiniteOutcomeModel):
         modelparams_new[:,0] = clip_omega(modelparams[:,0] + steps)
         return modelparams_new.reshape(modelparams.shape + (1,))
 class PriorSample2D(Distribution):
+    """ helper class for QinferDist2D """
     n_rvs = 2
     def __init__(self, omegas, v1s, dist):
         self.omegas, self.v1s = np.meshgrid(omegas, v1s)
@@ -398,8 +405,8 @@ class PriorSample2D(Distribution):
         upper = (cat1[ind1 + 1, ind0 + 1] + cat1[ind1 + 2, ind0 + 2]) / 2
         lower = (cat1[ind1 + 1, ind0 + 1] + cat1[ind1, ind0]) / 2
         return np.random.uniform(lower, upper)
-# simple wrapper class for the qinfer implementation
 class QinferDist2D(ParticleDist2D):
+    """ simple wrapper class for the qinfer implementation """
     name = 'qinfer'
     a = 1.
     h = 0.005
@@ -445,6 +452,8 @@ class RandomChooser(TimeChooser):
         return np.random.uniform(0., t_max)
 
 class TwoPointChooser(TimeChooser):
+    """ uses a heuristic method to choose t
+        obsolete compared to OptimizingChooser """
     name = 'two_point'
     def __init__(self, search_depth):
         self.search_depth = search_depth
@@ -484,6 +493,8 @@ class TwoPointChooser(TimeChooser):
             return (self.tau_n(nb) + self.tau_m(mb)) / 2
 
 class OptimizingChooser(TimeChooser):
+    """ chooses the best t from a set of n_ts choices,
+        represents the distribution using n_omegas samples """
     name = 'optimizing'
     def __init__(self, n_omegas, n_ts):
         self.n_omegas, self.n_ts = n_omegas, n_ts
@@ -492,13 +503,13 @@ class OptimizingChooser(TimeChooser):
     def get_t(self, dist):
         omegas = dist.sample_omega(self.n_omegas).reshape(self.n_omegas, 1)
         ts = self.get_potential_ts()
-        pe = likelihood(omegas, ts, 1)
-        pg = 1 - pe
-        mean_e = omegas * pe / np.sum(pe, axis = 0)
-        mean_g = omegas * pg / np.sum(pg, axis = 0)
+        pe = likelihood(omegas, ts, 1)  # probability of m=1
+        pg = 1 - pe                     # probability of m=0
+        mean_e = omegas * pe / np.sum(pe, axis = 0) # estimated omega given m=1
+        mean_g = omegas * pg / np.sum(pg, axis = 0) # estimated omega given m=0
         se = ( pe * (omegas - mean_e)**2 +
                pg * (omegas - mean_g)**2 )
-        mse = np.sum(se, axis=0) / self.n_omegas
+        mse = np.sum(se, axis=0) / self.n_omegas # mean squared error
         t = ts[0, np.argmin(mse)]
         return t
 
@@ -535,13 +546,14 @@ class Estimator:
                 else:
                     self.dist.wait_u(t_u_list[i] - t_u_list[i-1])
             self.dist.update(t, m)
-        return t_hist, t_omega_hat_hist
+        return t_hist, t_omega_hat_hist # return some useful information
 
 class Simulator:
     def __init__(self, get_v1, get_omega_list, get_estimator, get_t_u_list=None):
         """ all arguments are functions that take the numbers (x, r, v1) as arguments
-            ( except that get_v1 only takes the numbers (x, r), and
-              get_omega_list takes (x, r, v1, t_u_list=None). ) """
+            except that get_v1 only takes the numbers (x, r),
+            and get_omega_list takes (x, r, v1, t_u_list=None).
+        """
         self.get_v1 = get_v1
         self.get_omega_list = get_omega_list
         self.get_estimator = get_estimator
@@ -550,6 +562,7 @@ class Simulator:
         else:
             self.get_t_u_list = get_t_u_list
     def do_runs(self, x, n_runs):
+        """ get the losses for a large number of runs """
         loss_omega_list, loss_v1_list = np.zeros(n_runs), np.zeros(n_runs)
         for r in range(n_runs):
             v1 = self.get_v1(x, r) # [1/s^2/u] (u is the time between measurements)
@@ -561,6 +574,10 @@ class Simulator:
             loss_v1_list[r] = (np.log(v1) - estimator.mean_log_v1())**2
         return loss_omega_list, loss_v1_list
     def x_trace(self, n_runs, x_list, x_list_nm):
+        """ take a set of runs for each possible value of x
+            returns a dict continaing the results, and some
+            other relevant information about the runs
+        """
         loss_omegas = np.zeros((len(x_list), n_runs))
         loss_v1s    = np.zeros((len(x_list), n_runs))
         for i, x in enumerate(x_list):
@@ -589,6 +606,7 @@ class Simulator:
             'chooser_params': get_numeric_class_vars(type(dummy_est.chooser)),
         }
     def get_t_hist(self, x, n_runs):
+        """ do a set of runs just for the purpose of collecting the t_hist """
         t_hists = []
         t_omega_hat_hists = []
         for r in range(n_runs):

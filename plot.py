@@ -4,6 +4,21 @@ from sys import argv
 from util import load_data, Bunch, diff, fn_from_source
 
 
+""" usage:
+    python plot.py [list of filenames] [options]
+    possible options:
+    -l      display legend
+    -p      print out the full legend, and just number the traces
+    -gb     plot grid bounds
+    -ogb    just plot grid bound for first trace
+    -crb    cramer rao bound, and cramer rao infinite measurement floor if applicable
+    -ncrf   don't include the cramer rao floor
+    -dcnm   legend with just the dist name and chooser for each trace
+    -o      plot the omega loss (default)
+    -v      plot the v1 loss
+"""
+
+
 # constants
 EST_BND_GAMMA = 0.78 # the gamma constant for the estimated bound
 # (run compute_est_bnd_gamma.py to compute this value)
